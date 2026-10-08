@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.data/
+*.tsbuildinfo
+coverage/
+.DS_Store
+# never commit the owner's sheet export or real data
+*.xlsx
+!rezsi/app/server/test/fixtures/*.xlsx

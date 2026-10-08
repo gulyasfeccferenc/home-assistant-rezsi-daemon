@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`export files > CSV (snapshot) 1`] = `
+"year,month,category,kind,value,unit,date,paid
+2026,9,gas,reading,7600,m³,2026-09-10,
+2026,9,electricity,reading,43000,kWh,2026-09-10,
+2026,9,water,reading,540,m³,2026-09-01,
+2026,9,gas,reported,7462,m³,2026-09-22,
+2026,9,gas,bill,10000,HUF,,true
+2026,9,electricity,bill,13000,HUF,,true
+2026,10,gas,reading,7800,m³,2026-10-10,
+2026,10,electricity,reading,43200,kWh,2026-10-10,
+2026,10,telecom,bill,10990,HUF,2026-10-25,false
+2026,10,waste,bill,6150,HUF,,true
+2026,9,gas,profile,50,m³,,
+2026,10,gas,profile,150,m³,,
+2026,11,gas,profile,250,m³,,
+2026,12,gas,profile,300,m³,,
+2026,,gas,target,2100,m³,,
+"
+`;
+
+exports[`export files > Markdown report (snapshot) 1`] = `
+"# Rezsi – 2026. október
+
+## Mérőállások és fogyasztás
+
+| Mérő | Óraállás | Dátum | Fogyasztás | Tavaly | Változás |
+| :-- | --: | --: | --: | --: | --: |
+| Gáz | 7 800 m³ | 2026.10.10. | 200 m³ | 100 m³ | +100 % |
+| Villany | 43 200 kWh | 2026.10.10. | 200 kWh | 180 kWh | +11,1 % |
+| Víz | – | – | – | – | – |
+
+## Gáz diktálás
+
+|  | Érték |
+| :-- | --: |
+| Diktált óraállás | – |
+| Számlázott fogyasztás | – |
+| Jelleggörbe | 150 m³ |
+| Nem diktált (tényleges − diktált) | – |
+
+## Számlák
+
+| Tétel | Összeg | Állapot | Határidő | Egységár |
+| :-- | --: | --: | --: | --: |
+| Telekom | 10 990 Ft | **nincs fizetve** | 2026.10.25. | – |
+| Szemétszállítás | 6 150 Ft | fizetve | – | – |
+
+## Összesen
+
+|  | Idén | Tavaly | Változás |
+| :-- | --: | --: | --: |
+| Havi összesen | 17 140 Ft | 43 590 Ft | -60,7 % |
+| Év elejétől | 40 140 Ft | 52 590 Ft | -23,7 % |
+
+## Figyelmeztetések
+
+- ⚠️ Lejárt, kifizetetlen számla: Telekom (2026. október, határidő: 2026.10.25.).
+- ⚠️ Hiányzik: diktált gázóra-állás (2026. október).
+
+## Megjegyzés
+
+Szerelő, járt itt
+"
+`;

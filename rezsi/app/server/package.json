@@ -1,0 +1,21 @@
+{
+  "name": "@rezsi/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.17",
+    "croner": "^9.1.0",
+    "exceljs": "^4.4.0",
+    "hono": "^4.13.13",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@rezsi/shared": "workspace:*",
+    "esbuild": "^0.25.12"
+  }
+}
