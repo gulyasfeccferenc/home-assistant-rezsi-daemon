@@ -1,7 +1,7 @@
 import { BILLS, BILL_IDS, METERS, METER_IDS, MONTHS, monthName, type BillId, type MeterId, type Month } from './categories.js';
 import type { CalcConfig } from './config.js';
 import { addDays, daysInMonth, fromMonthIndex, isoDate, monthIndex, parseIsoDate } from './dates.js';
-import { formatQuantity } from './format.js';
+import { formatDate, formatQuantity } from './format.js';
 import type { Bill, MonthRecord, Reading, YearFile } from './schema.js';
 
 export interface SeriesPoint {
@@ -444,8 +444,8 @@ export function computeChecks(history: History, year: number, cfg: CalcConfig, a
         month: rec.month,
         category: id,
         message: overdue
-          ? `Lejárt, kifizetetlen számla: ${billLabel(id)} (${ym(year, rec.month)}, határidő: ${b.dueDate}).`
-          : `Kifizetetlen számla: ${billLabel(id)} (${ym(year, rec.month)}${b.dueDate ? `, határidő: ${b.dueDate}` : ''}).`,
+          ? `Lejárt, kifizetetlen számla: ${billLabel(id)} (${ym(year, rec.month)}, határidő: ${formatDate(b.dueDate)}).`
+          : `Kifizetetlen számla: ${billLabel(id)} (${ym(year, rec.month)}${b.dueDate ? `, határidő: ${formatDate(b.dueDate)}` : ''}).`,
       });
     }
   }
@@ -488,7 +488,7 @@ export function computeChecks(history: History, year: number, cfg: CalcConfig, a
           year: y,
           month: m,
           category: 'water',
-          message: `Vízóra-leolvasás késésben (utolsó: ${last.date}).`,
+          message: `Vízóra-leolvasás késésben (utolsó: ${formatDate(last.date)}).`,
         });
       }
     }
