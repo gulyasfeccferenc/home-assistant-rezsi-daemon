@@ -247,6 +247,11 @@ function sumBills(rec: MonthRecord | undefined): number | undefined {
   return amounts.length ? amounts.reduce((a, b) => a + b, 0) : undefined;
 }
 
+/** Consumption above this multiple of the recent median is flagged as unusual. */
+const JUMP_FACTOR = 3;
+/** ...unless it is within this multiple of the same month last year. */
+const SEASONAL_TOLERANCE = 1.5;
+
 function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
@@ -402,9 +407,13 @@ export function computeChecks(history: History, year: number, cfg: CalcConfig, a
         const p = consumption.get(k);
         if (p && !p.estimated && p.value > 0) earlier.push(p.value);
       }
-      if (earlier.length >= 3) {
+      // Seasonal meters (gas heating) jump every winter: a month in line with the same month
+      // last year is not unusual, even if it is far above the recent median.
+      const lastYear = consumption.get(cur.index - 12);
+      const seasonal = lastYear && !lastYear.estimated && lastYear.value > 0 && c.value <= SEASONAL_TOLERANCE * lastYear.value;
+      if (earlier.length >= 3 && !seasonal) {
         const med = median(earlier);
-        if (c.value > 3 * med) {
+        if (c.value > JUMP_FACTOR * med) {
           const unit = METERS[source as MeterId].unit;
           checks.push({
             level: 'warning',

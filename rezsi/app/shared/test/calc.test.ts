@@ -147,6 +147,23 @@ describe('checks', () => {
     expect(checks[0].month).toBe(5);
   });
 
+  it('does not flag seasonal jumps that match last year', () => {
+    const gas = (vals: number[], start: number) => {
+      const months: Record<number, { gas: number }> = {};
+      let acc = start;
+      vals.forEach((v, i) => (months[i + 1] = { gas: (acc += v) }));
+      return months;
+    };
+    // 2025: Jan..Dec consumption; 2026 January is in line with January 2025.
+    const y2025 = year(2025, gas([300, 250, 200, 100, 50, 20, 20, 20, 40, 100, 200, 300], 0));
+    const dec = 300 + 250 + 200 + 100 + 50 + 20 + 20 + 20 + 40 + 100 + 200 + 300;
+    const y2024 = year(2024, { 12: { gas: 0 } });
+    const h = new History([y2024, y2025, year(2026, { 1: { gas: dec + 330 } })]);
+    expect(computeYear(h, 2026, cfg, '2026-01-20').checks.some((c) => c.code === 'consumption_jump')).toBe(false);
+    const h2 = new History([y2024, y2025, year(2026, { 1: { gas: dec + 900 } })]);
+    expect(computeYear(h2, 2026, cfg, '2026-01-20').checks.some((c) => c.code === 'consumption_jump')).toBe(true);
+  });
+
   it('does not flag jumps with too little history', () => {
     const h = new History([year(2026, { 1: { electricity: 0 }, 2: { electricity: 100 }, 3: { electricity: 1000 } })]);
     expect(computeYear(h, 2026, cfg, '2026-03-09').checks.some((c) => c.code === 'consumption_jump')).toBe(false);

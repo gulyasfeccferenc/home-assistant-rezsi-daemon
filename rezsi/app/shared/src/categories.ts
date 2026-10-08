@@ -13,28 +13,30 @@ export interface MeterDef {
   reported: boolean;
   /** Light fill used in tables and xlsx, taken from the original sheet. */
   fill: string;
-  /** Saturated color for charts and accents. */
+  /** Chart color on light / dark surfaces (validated categorical palette, fixed order). */
   color: string;
+  colorDark: string;
 }
 
 export const METERS: Record<MeterId, MeterDef> = {
-  gas: { label: 'Gáz', unit: 'm³', reported: true, fill: '#EFEFEF', color: '#7A7F87' },
-  electricity: { label: 'Villany', unit: 'kWh', reported: false, fill: '#FFF2CC', color: '#E0A800' },
-  water: { label: 'Víz', unit: 'm³', reported: false, fill: '#D0E0E3', color: '#3D85C6' },
+  gas: { label: 'Gáz', unit: 'm³', reported: true, fill: '#EFEFEF', color: '#4A3AA7', colorDark: '#9085E9' },
+  electricity: { label: 'Villany', unit: 'kWh', reported: false, fill: '#FFF2CC', color: '#EDA100', colorDark: '#C98500' },
+  water: { label: 'Víz', unit: 'm³', reported: false, fill: '#D0E0E3', color: '#2A78D6', colorDark: '#3987E5' },
 };
 
 export interface BillDef {
   label: string;
   fill: string;
   color: string;
+  colorDark: string;
 }
 
 export const BILLS: Record<BillId, BillDef> = {
-  gas: { label: 'Gáz', fill: METERS.gas.fill, color: METERS.gas.color },
-  electricity: { label: 'Villany', fill: METERS.electricity.fill, color: METERS.electricity.color },
-  water: { label: 'Víz', fill: METERS.water.fill, color: METERS.water.color },
-  telecom: { label: 'Telekom', fill: '#FCE5CD', color: '#E69138' },
-  waste: { label: 'Szemétszállítás', fill: '#F4CCCC', color: '#CC4125' },
+  gas: { label: 'Gáz', fill: METERS.gas.fill, color: METERS.gas.color, colorDark: METERS.gas.colorDark },
+  electricity: { label: 'Villany', fill: METERS.electricity.fill, color: METERS.electricity.color, colorDark: METERS.electricity.colorDark },
+  water: { label: 'Víz', fill: METERS.water.fill, color: METERS.water.color, colorDark: METERS.water.colorDark },
+  telecom: { label: 'Telekom', fill: '#FCE5CD', color: '#EB6834', colorDark: '#D95926' },
+  waste: { label: 'Szemétszállítás', fill: '#F4CCCC', color: '#1BAF7A', colorDark: '#199E70' },
 };
 
 export const TOTAL_FILL = '#FFFF00';
