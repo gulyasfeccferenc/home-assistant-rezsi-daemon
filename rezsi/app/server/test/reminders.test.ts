@@ -15,7 +15,7 @@ describe('ReminderService', () => {
     const sent = await svc.run();
     expect(sent.map((s) => s.meter)).toEqual(['gas']);
     const msg = ha.sent[0].payload;
-    expect(msg.message).toBe('Gáz diktálás: 10.20–10.28. Javasolt érték: 7 612 m³ Nem diktált: 338 m³');
+    expect(msg.message).toBe('Gáz diktálás: 10.20–10.28. Javasolt érték: 7\u00A0612\u00A0m³ Nem diktált: 338\u00A0m³');
     expect(msg.data).toMatchObject({ tag: 'rezsi-gas', group: 'rezsi', url: '/abcd1234_rezsi/rogzites/2026-10' });
 
     // Restart: fresh store from disk, startup run the same day.

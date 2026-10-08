@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rezsi/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: rezsi/app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+        env:
+          GIT_AUTHOR_NAME: ci
+          GIT_AUTHOR_EMAIL: ci@example.com
+      - run: pnpm build
+
+  image:
+    name: Build image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: rezsi
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: true
+          tags: rezsi:ci
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+      - name: Smoke test
+        run: |
+          docker run -d --name rezsi --init -e DATA_DIR=/tmp/data rezsi:ci
+          for i in $(seq 1 20); do
+            if docker exec rezsi node -e "fetch('http://127.0.0.1:8099/api/health').then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))"; then ok=1; break; fi
+            sleep 1
+          done
+          docker logs rezsi
+          docker exec rezsi node -e "console.log(new Intl.DateTimeFormat('hu-HU',{timeZone:'Europe/Budapest',dateStyle:'full'}).format(new Date()))"
+          docker exec rezsi git --version
+          test "$ok" = 1

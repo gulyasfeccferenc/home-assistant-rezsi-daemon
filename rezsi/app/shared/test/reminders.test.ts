@@ -91,7 +91,7 @@ describe('texts', () => {
     ]);
     const due = meterDue(h, 'gas', '2026-10-20', cfg);
     expect(reminderText(due, false).message).toBe(
-      'Gáz diktálás: 10.20–10.28. Javasolt érték: 7 612 m³ Nem diktált: 338 m³',
+      'Gáz diktálás: 10.20–10.28. Javasolt érték: 7\u00A0612\u00A0m³ Nem diktált: 338\u00A0m³',
     );
     expect(reminderText(meterDue(h, 'electricity', '2026-10-11', cfg), true).message).toBe(
       'Utolsó nap! Villanyóra leolvasás esedékes (10.08–10.11.)',

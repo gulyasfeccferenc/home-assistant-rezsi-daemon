@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatDate, formatHuf, formatNumber, formatPercent, parseNumberInput } from '../src/index.js';
 
-const S = ' ';
+const S = '\u00A0';
 
 describe('format', () => {
   it('formats Hungarian numbers', () => {

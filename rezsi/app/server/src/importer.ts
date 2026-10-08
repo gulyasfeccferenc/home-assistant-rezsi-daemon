@@ -68,7 +68,7 @@ export function cellNumber(v: ExcelJS.CellValue): number | undefined {
   if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
   if (typeof v === 'object' && v && 'result' in v) return cellNumber(v.result as ExcelJS.CellValue);
   if (typeof v === 'object' && v && 'error' in v) return undefined;
-  const s = cellText(v).replace(/[\s  ]/g, '').replace(/(Ft|HUF|m3|m³|kWh)$/i, '');
+  const s = cellText(v).replace(/[\s\u00A0\u202F]/g, '').replace(/(Ft|HUF|m3|m³|kWh)$/i, '');
   if (!s || s === '-' || s === '–') return undefined;
   const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
   return /^-?\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : undefined;

@@ -107,8 +107,8 @@ export class ExportService {
     });
     const result: ExportResult = { ok: false, pushed: false, changedFiles: [] };
     let stage = 'prepare';
+    let prepareError: Error | undefined;
     try {
-      let prepareError: Error | undefined;
       try {
         await git.prepare();
       } catch (err) {
@@ -128,7 +128,8 @@ export class ExportService {
       result.pushed = await git.push();
       result.ok = true;
     } catch (err) {
-      result.error = `${stage}: ${(err as Error).message}`;
+      // A failed prepare (e.g. git missing, remote unreachable) is the root cause of later failures.
+      result.error = prepareError ? `prepare: ${prepareError.message}` : `${stage}: ${(err as Error).message}`;
     }
 
     const head = await git.head();

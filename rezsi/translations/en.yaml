@@ -1,0 +1,50 @@
+configuration:
+  notify_service:
+    name: Notify service
+    description: Name of the notify service without the "notify." prefix, e.g. mobile_app_ifecc.
+  reminder_time:
+    name: Reminder time
+    description: Daily time (HH:MM, Europe/Budapest) when due readings are checked and reminders are sent.
+  repeat_every_days:
+    name: Repeat every (days)
+    description: While a reading is due, the reminder is repeated this often.
+  gas_window_start_day:
+    name: Gas reporting window start (day of month)
+  gas_window_end_day:
+    name: Gas reporting window end (day of month)
+    description: Clamped to the last day of short months.
+  electricity_window_start_day:
+    name: Electricity reading window start (day of month)
+  electricity_window_end_day:
+    name: Electricity reading window end (day of month)
+  water_interval_days:
+    name: Water reading interval (days)
+    description: The water window opens this many days after the last water reading.
+  water_window_days:
+    name: Water reading window (days)
+    description: After this many days the water reading is overdue (reminders continue).
+  yoy_warning_percent:
+    name: Year-over-year warning (%)
+    description: Consumption more than this percentage above the same month last year is highlighted.
+  publish_entities:
+    name: Publish Home Assistant entities
+    description: Publish binary_sensor.rezsi_*_due, sensor.rezsi_month_total and sensor.rezsi_unpaid_total.
+  export_enabled:
+    name: Monthly export
+    description: Export JSON/CSV/xlsx/Markdown monthly and push to the git repository.
+  export_day:
+    name: Export day of month
+  export_time:
+    name: Export time (HH:MM)
+  git_repo_url:
+    name: Git repository URL
+    description: HTTPS URL of the private data repository, e.g. https://github.com/owner/rezsi-data.git. Empty = local commits only.
+  git_token:
+    name: Git access token
+    description: Fine-grained personal access token limited to the data repository with "Contents read & write".
+  git_branch:
+    name: Git branch
+  git_author_name:
+    name: Commit author name
+  git_author_email:
+    name: Commit author email

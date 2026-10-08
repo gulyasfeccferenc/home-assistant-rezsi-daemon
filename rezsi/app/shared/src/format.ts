@@ -1,7 +1,7 @@
 // Hungarian number and date formatting, implemented by hand so that output is identical
 // in every runtime (browser, Node with or without full ICU) and in snapshot tests.
 
-const NBSP = ' ';
+const NBSP = '\u00A0';
 
 function group(intPart: string, sep: string): string {
   return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sep);
@@ -52,7 +52,7 @@ export function formatMonthDay(date: string): string {
  * Returns undefined for empty input and NaN for garbage.
  */
 export function parseNumberInput(raw: string): number | undefined {
-  const s = raw.replace(/[\s  ]/g, '').replace(/(Ft|m³|m3|kWh)$/i, '');
+  const s = raw.replace(/[\s\u00A0\u202F]/g, '').replace(/(Ft|m³|m3|kWh)$/i, '');
   if (s === '') return undefined;
   // A comma is always a decimal separator; dots are thousand separators only if a comma also exists.
   const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
