@@ -130,16 +130,19 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
   const cfg = config!.calc;
   const savedHistory = useMemo(() => new History(years), [years]);
   const saved = savedHistory.record(year, month);
+  // Data is reloaded when the app becomes visible again; only reset the form if the saved
+  // record actually changed, so a half-filled form survives switching apps.
+  const savedKey = JSON.stringify([saved ?? null, cfg.gasWindow]);
 
   const initial = useMemo(() => {
     // Pre-fill the suggested report once the gas window has opened (or for past months).
     const windowOpen = today >= monthlyWindow(year, month, cfg.gasWindow).start;
     const suggestion = !saved?.gasReported && windowOpen ? suggestGasReport(savedHistory, year, month)?.value : undefined;
     return toDraft(saved, year, month, today, suggestion);
-  }, [saved, year, month, today, savedHistory, cfg]);
+  }, [savedKey, year, month, today]);
   // Compare against the saved state (without the pre-filled suggestion) so that accepting the
   // suggestion as-is still counts as a change worth saving.
-  const pristine = useMemo(() => JSON.stringify(toDraft(saved, year, month, today)), [saved, year, month, today]);
+  const pristine = useMemo(() => JSON.stringify(toDraft(saved, year, month, today)), [savedKey, year, month, today]);
 
   const [draft, setDraft] = useState<Draft>(initial);
   const [saving, setSaving] = useState(false);
