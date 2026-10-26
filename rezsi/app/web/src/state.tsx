@@ -1,6 +1,6 @@
 import { createContext } from 'preact';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'preact/hooks';
-import { History, today as todayIn, type YearFile } from '@rezsi/shared';
+import { checkKey, History, today as todayIn, type Check, type YearFile } from '@rezsi/shared';
 import { api, type ConfigResponse, type DataResponse, type StatusResponse } from './api';
 
 export interface AppState {
@@ -12,8 +12,13 @@ export interface AppState {
   error?: string;
   loading: boolean;
   reload: () => Promise<void>;
-  /** Replace one year file locally after a save (then refresh status in the background). */
+  /** Replace year files locally after a save (then refresh status in the background). */
   applyYear: (file: YearFile) => void;
+  applyYears: (files: YearFile[]) => void;
+  dismissed: Set<string>;
+  /** Deletes (hides) a warning; it does not come back unless restored in Beállítások. */
+  dismissCheck: (check: Check) => Promise<void>;
+  restoreChecks: () => Promise<void>;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -46,16 +51,41 @@ export function AppProvider({ children }: { children: preact.ComponentChildren }
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [reload]);
 
-  const applyYear = useCallback((file: YearFile) => {
-    setData((d) => (d ? { ...d, years: [...d.years.filter((y) => y.year !== file.year), file].sort((a, b) => a.year - b.year) } : d));
+  const applyYears = useCallback((files: YearFile[]) => {
+    setData((d) => {
+      if (!d) return d;
+      const byYear = new Map(d.years.map((y) => [y.year, y]));
+      for (const f of files) byYear.set(f.year, f);
+      return { ...d, years: [...byYear.values()].sort((a, b) => a.year - b.year) };
+    });
     void api.status().then(setStatus).catch(() => undefined);
   }, []);
+  const applyYear = useCallback((file: YearFile) => applyYears([file]), [applyYears]);
 
-  const history = useMemo(() => new History(data?.years ?? []), [data]);
+  const setDismissed = (keys: string[]) => {
+    setData((d) => (d ? { ...d, dismissedChecks: keys } : d));
+    void api.status().then(setStatus).catch(() => undefined);
+  };
+  const dismissCheck = useCallback(async (check: Check) => {
+    const key = checkKey(check);
+    // Hide immediately; the server filters it from the next status as well.
+    setStatus((s) => (s ? { ...s, checks: s.checks.filter((c) => checkKey(c) !== key) } : s));
+    setDismissed((await api.dismissChecks([key])).dismissedChecks);
+  }, []);
+  const restoreChecks = useCallback(async () => {
+    setDismissed((await api.restoreChecks()).dismissedChecks);
+  }, []);
+
+  const history = useMemo(() => new History(data?.years ?? []), [data?.years]);
+  const dismissed = useMemo(() => new Set(data?.dismissedChecks ?? []), [data?.dismissedChecks]);
   const today = status?.today ?? todayIn();
 
   return (
-    <Ctx.Provider value={{ config, data, status, history, today, error, loading, reload, applyYear }}>{children}</Ctx.Provider>
+    <Ctx.Provider
+      value={{ config, data, status, history, today, error, loading, reload, applyYear, applyYears, dismissed, dismissCheck, restoreChecks }}
+    >
+      {children}
+    </Ctx.Provider>
   );
 }
 

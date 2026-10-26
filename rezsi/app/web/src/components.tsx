@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import { formatDate, monthName, type Check } from '@rezsi/shared';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { formatDate, monthName, parseDateInput, type Check } from '@rezsi/shared';
 
 export function Card({ title, children, actions, class: cls }: { title?: ComponentChildren; children: ComponentChildren; actions?: ComponentChildren; class?: string }) {
   return (
@@ -31,19 +31,85 @@ export function Badge({ tone, children }: { tone: Tone; children: ComponentChild
   );
 }
 
-export function Checks({ checks, empty }: { checks: Check[]; empty?: string }) {
+export function Checks({ checks, empty, onDismiss }: { checks: Check[]; empty?: string; onDismiss?: (c: Check) => void }) {
   if (!checks.length) return empty ? <p class="muted">{empty}</p> : null;
   return (
     <ul class="checks">
       {checks.map((c, i) => (
-        <li key={i} class={`check check-${c.level}`}>
+        <li key={`${c.code}-${c.year}-${c.month}-${c.category}-${i}`} class={`check check-${c.level}`}>
           <Badge tone={c.level === 'error' ? 'bad' : c.level === 'warning' ? 'warn' : 'info'}>
             {c.level === 'error' ? 'Hiba' : c.level === 'warning' ? 'Figyelem' : 'Infó'}
           </Badge>
-          <span>{c.message}</span>
+          <span class="check-text">{c.message}</span>
+          {onDismiss && (
+            <button type="button" class="icon-btn icon-btn-small" aria-label={`Figyelmeztetés törlése: ${c.message}`} title="Törlés" onClick={() => onDismiss(c)}>
+              ✕
+            </button>
+          )}
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Date field that always shows and accepts year.month.day (`2026.10.08.`), independent of the
+ * device locale. A calendar button opens the native picker (a transparent native date input
+ * laid over the button, so it works on iOS too). `onChange` gets `YYYY-MM-DD`, '' when empty,
+ * or 'invalid' while the typed text is not a valid date.
+ */
+export function DateInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const [text, setText] = useState(value && value !== 'invalid' ? formatDate(value) : '');
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current && value !== 'invalid') setText(value ? formatDate(value) : '');
+  }, [value]);
+  const parsed = parseDateInput(text);
+  return (
+    <div class={`date-input ${parsed === null ? 'invalid' : ''}`}>
+      <input
+        type="text"
+        inputMode="numeric"
+        autocomplete="off"
+        placeholder="éééé.hh.nn."
+        aria-label={label}
+        aria-invalid={parsed === null}
+        value={text}
+        onFocus={() => (focused.current = true)}
+        onBlur={() => {
+          focused.current = false;
+          const p = parseDateInput(text);
+          if (p) setText(formatDate(p));
+        }}
+        onInput={(e) => {
+          const t = (e.target as HTMLInputElement).value;
+          setText(t);
+          const p = parseDateInput(t);
+          onChange(p === null ? 'invalid' : p ?? '');
+        }}
+      />
+      <span class="date-picker" aria-hidden="true">
+        📅
+        <input
+          type="date"
+          tabIndex={-1}
+          value={value && value !== 'invalid' ? value : ''}
+          onClick={(e) => {
+            // Desktop browsers only open the picker from their own icon; ask explicitly.
+            try {
+              (e.target as HTMLInputElement).showPicker?.();
+            } catch {
+              /* not supported or not allowed */
+            }
+          }}
+          onInput={(e) => {
+            const v = (e.target as HTMLInputElement).value;
+            setText(v ? formatDate(v) : '');
+            onChange(v);
+          }}
+        />
+      </span>
+    </div>
   );
 }
 
@@ -82,14 +148,15 @@ export function MonthNav({ year, month, onChange }: { year: number; month: numbe
   );
 }
 
-let toastSetter: ((t: { text: string; tone: Tone } | null) => void) | null = null;
+type ToastState = { text: string; tone: Tone; ms?: number };
+let toastSetter: ((t: ToastState | null) => void) | null = null;
 
-export function toast(text: string, tone: Tone = 'ok'): void {
-  toastSetter?.({ text, tone });
+export function toast(text: string, tone: Tone = 'ok', ms?: number): void {
+  toastSetter?.({ text, tone, ms });
 }
 
 export function ToastHost() {
-  const [t, setT] = useState<{ text: string; tone: Tone } | null>(null);
+  const [t, setT] = useState<ToastState | null>(null);
   useEffect(() => {
     toastSetter = setT;
     return () => {
@@ -98,12 +165,60 @@ export function ToastHost() {
   }, []);
   useEffect(() => {
     if (!t) return;
-    const id = setTimeout(() => setT(null), t.tone === 'bad' ? 6000 : 2500);
+    const id = setTimeout(() => setT(null), t.ms ?? (t.tone === 'bad' ? 6000 : 2500));
     return () => clearTimeout(id);
   }, [t]);
   return (
     <div class="toast-host" role="status" aria-live="polite">
       {t && <div class={`toast toast-${t.tone}`}>{t.text}</div>}
+    </div>
+  );
+}
+
+/**
+ * Modal confirmation (in-app, so it looks the same in the HA app's web view as in a browser).
+ * Escape or tapping the backdrop cancels; focus starts on the safe choice.
+ */
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  cancelLabel = 'Mégse',
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  children: ComponentChildren;
+  confirmLabel: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    cancelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel();
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
+  }, [onCancel]);
+  return (
+    <div class="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">{title}</h2>
+        <div class="modal-body">{children}</div>
+        <div class="btn-row modal-actions">
+          <button type="button" class="btn btn-secondary" ref={cancelRef} onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button type="button" class="btn" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

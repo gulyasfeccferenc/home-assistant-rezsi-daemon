@@ -14,7 +14,7 @@ import {
   type Tariff,
 } from '@rezsi/shared';
 import { api, type ImportResult } from '../api';
-import { Badge, Card, YearSelect, toast } from '../components';
+import { Badge, Card, DateInput, YearSelect, toast } from '../components';
 import { useApp, useYears } from '../state';
 
 const OPTION_LABELS: Record<string, string> = {
@@ -178,7 +178,7 @@ function TariffsCard() {
               </option>
             ))}
           </select>
-          <input type="date" aria-label="Érvényes ettől" value={r.validFrom} onInput={(e) => set(i, { validFrom: (e.target as HTMLInputElement).value })} />
+          <DateInput label="Érvényes ettől" value={r.validFrom} onChange={(v) => set(i, { validFrom: v })} />
           <input
             type="text"
             inputMode="decimal"
@@ -314,6 +314,28 @@ function NotifyCard() {
   );
 }
 
+function DismissedCard() {
+  const { data, restoreChecks } = useApp();
+  const count = data?.dismissedChecks?.length ?? 0;
+  return (
+    <Card title="Törölt figyelmeztetések">
+      <p class="muted small">{count ? `${count} törölt figyelmeztetés van elrejtve.` : 'Nincs törölt figyelmeztetés.'}</p>
+      <button
+        type="button"
+        class="btn btn-secondary"
+        disabled={!count}
+        onClick={() =>
+          void restoreChecks()
+            .then(() => toast('Figyelmeztetések visszaállítva'))
+            .catch((err: Error) => toast(err.message, 'bad'))
+        }
+      >
+        Mind visszaállítása
+      </button>
+    </Card>
+  );
+}
+
 function ImportCard() {
   const { reload } = useApp();
   const [file, setFile] = useState<File>();
@@ -417,6 +439,7 @@ export function SettingsView() {
       <ExportCard />
       <NotifyCard />
       <TariffsCard />
+      <DismissedCard />
       <ImportCard />
       <OptionsCard />
     </div>

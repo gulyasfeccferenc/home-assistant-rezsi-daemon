@@ -2,7 +2,7 @@ import { History, monthlyWindow, suggestGasReport, type GasSuggestion } from './
 import { METER_IDS, type MeterId } from './categories.js';
 import type { CalcConfig } from './config.js';
 import { addDays, diffDays, parseIsoDate } from './dates.js';
-import { formatDate, formatMonthDayRange, formatQuantity } from './format.js';
+import { formatDate, formatDateRange, formatQuantity } from './format.js';
 
 export type DueStatus = 'ok' | 'upcoming' | 'due' | 'overdue' | 'unknown';
 
@@ -103,19 +103,19 @@ export function reminderText(due: MeterDue, urgent: boolean): ReminderText {
   const prefix = urgent ? 'Utolsó nap! ' : '';
   switch (due.meter) {
     case 'gas': {
-      const parts = [`${prefix}Gáz diktálás: ${formatMonthDayRange(due.windowStart!, due.windowEnd!)}.`];
+      const parts = [`${prefix}Gáz diktálás: ${formatDateRange(due.windowStart!, due.windowEnd!)}`];
       if (due.suggestion) parts.push(`Javasolt érték: ${formatQuantity(due.suggestion.value, 'm³', 0)}`);
       if (due.deficit !== undefined) parts.push(`Nem diktált: ${formatQuantity(due.deficit, 'm³', 0)}`);
-      return { title: 'Rezsi – gáz', message: parts.join(' ') };
+      return { title: 'RezsiDaemon – gáz', message: parts.join(' ') };
     }
     case 'electricity':
       return {
-        title: 'Rezsi – villany',
-        message: `${prefix}Villanyóra leolvasás esedékes (${formatMonthDayRange(due.windowStart!, due.windowEnd!)}.)`,
+        title: 'RezsiDaemon – villany',
+        message: `${prefix}Villanyóra leolvasás esedékes (${formatDateRange(due.windowStart!, due.windowEnd!)})`,
       };
     case 'water':
       return {
-        title: 'Rezsi – víz',
+        title: 'RezsiDaemon – víz',
         message:
           due.status === 'overdue'
             ? `Vízóra leolvasás késésben (utolsó: ${formatDate(due.lastReadingDate)})`

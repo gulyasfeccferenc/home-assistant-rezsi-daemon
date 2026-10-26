@@ -18,6 +18,37 @@ describe('DataStore', () => {
     expect((await readdir(join(dir, 'years'))).sort()).toEqual(['2025.json', '2026.json']);
   });
 
+  it('raises lower readings in later months (also in later years) on save', async () => {
+    const dir = await tempDir();
+    const store = await seededStore(dir);
+    await store.upsertMonth(2026, 11, { month: 11, readings: { electricity: { value: 43300, date: '2026-11-09' } }, bills: {} });
+    await store.upsertMonth(2027, 1, { month: 1, readings: { electricity: { value: 43350, date: '2027-01-09' } }, bills: {} });
+    const { adjustments } = await store.upsertMonth(2026, 10, {
+      ...store.getYear(2026)!.months.find((m) => m.month === 10)!,
+      readings: { gas: { value: 7800, date: '2026-10-10' }, electricity: { value: 44000, date: '2026-10-10' } },
+    });
+    expect(adjustments.map((a) => `${a.year}-${a.month} ${a.source} ${a.from}->${a.to}`)).toEqual([
+      '2026-11 electricity 43300->44000',
+      '2027-1 electricity 43350->44000',
+    ]);
+    const reloaded = new DataStore(dir);
+    await reloaded.init();
+    expect(reloaded.getYear(2027)!.months[0].readings.electricity).toEqual({ value: 44000, date: '2027-01-09' });
+    // Earlier months are never touched.
+    expect(reloaded.getYear(2026)!.months.find((m) => m.month === 9)!.readings.electricity!.value).toBe(43000);
+  });
+
+  it('remembers and restores dismissed warnings', async () => {
+    const dir = await tempDir();
+    const store = await seededStore(dir);
+    await store.setDismissedChecks(['a|1', 'b|2', 'a|1'], true);
+    const reloaded = new DataStore(dir);
+    await reloaded.init();
+    expect(reloaded.getDismissedChecks()).toEqual(['a|1', 'b|2']);
+    expect(await reloaded.setDismissedChecks(['a|1'], false)).toEqual(['b|2']);
+    expect(await reloaded.setDismissedChecks([], false)).toEqual([]);
+  });
+
   it('removes a month when saved empty', async () => {
     const store = await seededStore(await tempDir());
     await store.upsertMonth(2026, 10, { month: 10, readings: {}, bills: {} });

@@ -1,4 +1,4 @@
-import type { CalcConfig, ComputedYear, MeterDue, MonthRecord, ProfileUpdate, Tariff, YearFile, Check, YearTotals } from '@rezsi/shared';
+import type { CalcConfig, CarryAdjustment, ComputedYear, MeterDue, MonthRecord, ProfileUpdate, Tariff, YearFile, Check, YearTotals } from '@rezsi/shared';
 
 // All URLs are relative (no leading slash) so they resolve against the Ingress base path.
 
@@ -42,6 +42,7 @@ export interface ConfigResponse {
 export interface DataResponse {
   years: YearFile[];
   tariffs: Tariff[];
+  dismissedChecks: string[];
   loadErrors: { file: string; error: string }[];
 }
 
@@ -88,14 +89,17 @@ export const api = {
   data: () => request<DataResponse>('data'),
   status: () => request<StatusResponse>('status'),
   saveMonth: (year: number, month: number, rec: MonthRecord) =>
-    request<{ file: YearFile; computed: ComputedYear }>(`years/${year}/months/${month}`, { method: 'PUT', body: JSON.stringify(rec) }),
+    request<{ file: YearFile; years: YearFile[]; adjustments: CarryAdjustment[]; computed: ComputedYear }>(`years/${year}/months/${month}`, {
+      method: 'PUT',
+      body: JSON.stringify(rec),
+    }),
+  dismissChecks: (keys: string[]) =>
+    request<{ dismissedChecks: string[] }>('checks/dismiss', { method: 'POST', body: JSON.stringify({ keys }) }),
+  restoreChecks: () => request<{ dismissedChecks: string[] }>('checks/dismiss', { method: 'DELETE' }),
   saveProfile: (year: number, update: ProfileUpdate) =>
     request<{ file: YearFile }>(`years/${year}/profile`, { method: 'PUT', body: JSON.stringify(update) }),
   saveTariffs: (tariffs: Tariff[]) => request<Tariff[]>('tariffs', { method: 'PUT', body: JSON.stringify(tariffs) }),
-  exportNow: () =>
-    request<ExportResult>('export', { method: 'POST' }).catch((err: ApiError) => {
-      throw err;
-    }),
+  exportNow: () => request<ExportResult>('export', { method: 'POST' }),
   testNotify: () => request<{ ok: boolean; dryRun: boolean }>('notify/test', { method: 'POST' }),
   importSheet: (file: File, apply: boolean) => {
     const form = new FormData();

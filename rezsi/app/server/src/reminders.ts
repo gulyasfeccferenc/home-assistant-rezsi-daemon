@@ -98,7 +98,7 @@ export class ReminderService {
   async sendTest(): Promise<void> {
     const panel = await this.ha.getPanelPath();
     await this.ha.notify(this.options.notify_service, {
-      title: 'Rezsi – teszt',
+      title: 'RezsiDaemon – teszt',
       message: `Teszt értesítés (${Object.values(METERS).map((m) => m.label).join(', ')} emlékeztetők).`,
       data: { tag: 'rezsi-test', group: 'rezsi', ...(panel ? { url: panel, clickAction: panel } : {}) },
     });

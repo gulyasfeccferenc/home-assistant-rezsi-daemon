@@ -281,7 +281,8 @@ Behaviour:
 - Call: `POST http://supervisor/core/api/services/notify/<notify_service>` with
   `{ title, message, data: { url: <ingress panel path>#/rogzites?month=..., tag: 'rezsi-<meter>', group: 'rezsi' } }`.
   Get the panel path from `GET http://supervisor/addons/self/info` (`ingress_url` / slug). *Verify on the iPhone that tapping opens the add-on panel.*
-- Example texts: `Gáz diktálás: 10.20–10.28. Javasolt érték: 7 612 m³` / `Villanyóra leolvasás esedékes (10.08–10.11.)` / `Vízóra leolvasás esedékes`.
+- Example texts: `Gáz diktálás: 2026.10.20.–2026.10.28. Javasolt érték: 7 612 m³` / `Villanyóra leolvasás esedékes (2026.10.08.–2026.10.11.)` / `Vízóra leolvasás esedékes`.
+  (Changed after the MVP: dates are always written as year.month.day, see the 0.2.0 changelog.)
 
 Optional (milestone 7): publish entities via `POST /api/states/...`:
 `binary_sensor.rezsi_gas_due`, `binary_sensor.rezsi_electricity_due`, `binary_sensor.rezsi_water_due`,

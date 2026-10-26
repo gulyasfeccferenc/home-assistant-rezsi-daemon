@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/apps/configuration#app-configuration
-name: Rezsi
-version: "0.1.0"
+name: RezsiDaemon
+version: "0.2.0"
 slug: rezsi
 description: Household utility tracker with reminders and git export
 url: https://github.com/gulyasfeccferenc/home-assistant-rezsi-daemon
@@ -14,7 +14,7 @@ init: true
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:home-lightning-bolt
-panel_title: Rezsi
+panel_title: RezsiDaemon
 homeassistant_api: true
 hassio_api: true
 backup: hot

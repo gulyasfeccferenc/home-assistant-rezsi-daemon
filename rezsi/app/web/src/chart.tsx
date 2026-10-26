@@ -11,6 +11,7 @@ import {
   PointElement,
   Tooltip,
   type ChartConfiguration,
+  type Plugin,
 } from 'chart.js';
 import { formatNumber } from '@rezsi/shared';
 
@@ -42,6 +43,35 @@ export function chartTheme() {
   };
 }
 
+/** Touch screens (no hover): the phone in the HA app. */
+const isTouch = () => matchMedia('(hover: none)').matches;
+
+function hideTooltip(chart: Chart): void {
+  if (!chart.tooltip?.getActiveElements().length) return;
+  chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+  chart.setActiveElements([]);
+  chart.update('none');
+}
+
+/**
+ * Tooltips on touch screens: a tap opens the tooltip, a second tap on the same month closes it
+ * (a tap on another month moves it there). Scrolling over a chart never opens one, because only
+ * taps (click events) are listened to; see `events` below.
+ */
+const tapToggle: Plugin = {
+  id: 'tapToggle',
+  beforeEvent(chart, args) {
+    const e = args.event;
+    if (e.type !== 'click' || !isTouch()) return;
+    const active = chart.tooltip?.getActiveElements() ?? [];
+    if (!active.length || !e.native) return;
+    const hits = chart.getElementsAtEventForMode(e.native, 'index', { intersect: false }, false);
+    if (hits.length && hits[0].index !== active[0].index) return;
+    hideTooltip(chart);
+    return false;
+  },
+};
+
 export function ChartCanvas({ config, height = 220, label }: { config: ChartConfiguration; height?: number; label: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dark = useDarkMode();
@@ -51,8 +81,33 @@ export function ChartCanvas({ config, height = 220, label }: { config: ChartConf
     Chart.defaults.color = t.text;
     Chart.defaults.borderColor = t.grid;
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-    const chart = new Chart(ref.current, config);
-    return () => chart.destroy();
+    const touch = isTouch();
+    const chart = new Chart(ref.current, {
+      ...config,
+      options: {
+        ...config.options,
+        // Touch: react to taps only (no touchstart/touchmove), so scrolling does not open tooltips.
+        events: touch ? ['click'] : ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
+        plugins: {
+          ...config.options?.plugins,
+          tooltip: {
+            ...config.options?.plugins?.tooltip,
+            // Smaller tooltip on phones so it covers less of the chart.
+            ...(touch ? { padding: 6, bodyFont: { size: 12 }, titleFont: { size: 12 }, boxWidth: 10, boxHeight: 10 } : {}),
+          },
+        },
+      },
+      plugins: [...(config.plugins ?? []), tapToggle],
+    });
+    // A tap anywhere outside the chart closes its tooltip too.
+    const onOutside = (e: Event) => {
+      if (e.target !== ref.current) hideTooltip(chart);
+    };
+    document.addEventListener('touchstart', onOutside, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onOutside);
+      chart.destroy();
+    };
   }, [config, dark]);
   return (
     <div class="chart" style={{ height: `${height}px` }}>

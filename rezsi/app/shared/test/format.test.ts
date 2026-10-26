@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatHuf, formatNumber, formatPercent, parseNumberInput } from '../src/index.js';
+import { formatDate, formatDateRange, formatHuf, formatNumber, formatPercent, parseDateInput, parseNumberInput } from '../src/index.js';
 
 const S = '\u00A0';
 
@@ -17,6 +17,17 @@ describe('format', () => {
 
   it('formats dates', () => {
     expect(formatDate('2026-10-08')).toBe('2026.10.08.');
+    expect(formatDateRange('2026-10-20', '2026-10-28')).toBe('2026.10.20.–2026.10.28.');
+  });
+
+  it('parses typed dates in year.month.day order', () => {
+    expect(parseDateInput('2026.10.08.')).toBe('2026-10-08');
+    expect(parseDateInput('2026. 10. 8.')).toBe('2026-10-08');
+    expect(parseDateInput('2026-10-08')).toBe('2026-10-08');
+    expect(parseDateInput('20261008')).toBe('2026-10-08');
+    expect(parseDateInput('  ')).toBeUndefined();
+    expect(parseDateInput('2026.02.30.')).toBeNull();
+    expect(parseDateInput('10.08.2026')).toBeNull();
   });
 
   it('parses user input', () => {

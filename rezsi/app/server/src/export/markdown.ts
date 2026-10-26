@@ -11,6 +11,7 @@ import {
   METERS,
   METER_IDS,
   monthName,
+  withoutDismissed,
   type CalcConfig,
   type History,
 } from '@rezsi/shared';
@@ -29,13 +30,20 @@ function table(head: string[], rows: string[][]): string {
  * Human-readable monthly report. Checks are evaluated as of the last day of the month (or today
  * for the running month), so reports of finished months depend only on the data (stable diffs).
  */
-export function monthlyReport(history: History, year: number, month: number, cfg: CalcConfig, today: string): string {
+export function monthlyReport(
+  history: History,
+  year: number,
+  month: number,
+  cfg: CalcConfig,
+  today: string,
+  dismissed: Iterable<string> = [],
+): string {
   const endOfMonth = isoDate(year, month, daysInMonth(year, month));
   const asOf = today < endOfMonth ? today : endOfMonth;
   const computed = computeYear(history, year, cfg, asOf);
   const cm = computed.months[month - 1];
   const rec = history.record(year, month);
-  const out: string[] = [`# Rezsi – ${year}. ${monthName(month, false)}`, ''];
+  const out: string[] = [`# RezsiDaemon – ${year}. ${monthName(month, false)}`, ''];
 
   out.push('## Mérőállások és fogyasztás', '');
   out.push(
@@ -105,7 +113,7 @@ export function monthlyReport(history: History, year: number, month: number, cfg
     '',
   );
 
-  const checks = computed.checks.filter((c) => c.month === month);
+  const checks = withoutDismissed(computed.checks, dismissed).filter((c) => c.month === month);
   out.push('## Figyelmeztetések', '');
   if (checks.length === 0) out.push('_Nincs._');
   else for (const c of checks) out.push(`- ${c.level === 'error' ? '❌' : c.level === 'warning' ? '⚠️' : 'ℹ️'} ${c.message}`);

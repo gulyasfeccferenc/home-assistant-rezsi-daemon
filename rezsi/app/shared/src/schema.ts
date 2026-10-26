@@ -103,11 +103,14 @@ export const settingsFileSchema = z
   .object({
     schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
     tariffs: z.array(tariffSchema),
+    /** Keys (see checkKey) of warnings the user deleted. */
+    dismissedChecks: z.array(z.string().min(1).max(200)).max(2000).default([]),
   })
   .strict()
   .transform((s) => ({
     ...s,
     tariffs: [...s.tariffs].sort((a, b) => a.bill.localeCompare(b.bill) || a.validFrom.localeCompare(b.validFrom)),
+    dismissedChecks: [...new Set(s.dismissedChecks)].sort(),
   }));
 export type SettingsFile = z.output<typeof settingsFileSchema>;
 

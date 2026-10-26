@@ -2,7 +2,7 @@ import {
   BILLS,
   formatDate,
   formatHuf,
-  formatMonthDayRange,
+  formatDateRange,
   formatPercent,
   formatQuantity,
   METERS,
@@ -35,7 +35,7 @@ function MeterRow({ due }: { due: MeterDue }) {
         {due.windowStart && due.windowEnd && (
           <span>
             {due.meter === 'water' ? 'Következő leolvasás: ' : 'Ablak: '}
-            {formatMonthDayRange(due.windowStart, due.windowEnd)}
+            {formatDateRange(due.windowStart, due.windowEnd)}
           </span>
         )}
         {due.lastReadingDate && <span>Utolsó: {formatDate(due.lastReadingDate)}</span>}
@@ -60,7 +60,7 @@ function MeterRow({ due }: { due: MeterDue }) {
 }
 
 export function OverviewView() {
-  const { status, today } = useApp();
+  const { status, today, dismissCheck } = useApp();
   if (!status) return null;
   const t = status.totals;
   const [y, m] = today.split('-').map(Number);
@@ -128,7 +128,7 @@ export function OverviewView() {
       </Card>
 
       <Card title="Figyelmeztetések">
-        <Checks checks={important} empty="Nincs figyelmeztetés." />
+        <Checks checks={important} empty="Nincs figyelmeztetés." onDismiss={(c) => void dismissCheck(c)} />
       </Card>
     </div>
   );

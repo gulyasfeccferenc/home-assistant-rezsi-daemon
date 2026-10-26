@@ -1,4 +1,4 @@
-# Rezsi – Home Assistant add-on
+# RezsiDaemon – Home Assistant add-on
 
 Household utility tracker for Home Assistant OS: a Hungarian Ingress panel for meter readings and bills,
 push reminders when a meter has to be read or reported, and a monthly export (JSON/CSV/xlsx/Markdown)
@@ -8,7 +8,7 @@ committed to a private git repository. See [SPEC.md](SPEC.md) for the full speci
 ## Install
 
 - **As a repository:** Settings → Add-ons → Add-on store → ⋮ → Repositories → add
-  `https://github.com/gulyasfeccferenc/home-assistant-rezsi-daemon`, then install **Rezsi**.
+  `https://github.com/gulyasfeccferenc/home-assistant-rezsi-daemon`, then install **RezsiDaemon**.
 - **As a local add-on:** copy the `rezsi/` folder to the `/addons` share and reload the add-on store.
 
 The image is built on the device from `rezsi/Dockerfile` (multi-stage: Node build, then

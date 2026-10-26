@@ -2,25 +2,30 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import {
   BILLS,
   BILL_IDS,
+  carryForward,
   computeChecks,
   formatDate,
+  formatDateRange,
   formatNumber,
   formatQuantity,
   History,
   isoDate,
+  isValidIsoDate,
   METERS,
   METER_IDS,
   monthlyWindow,
   monthRecordSchema,
   parseNumberInput,
   suggestGasReport,
+  withoutDismissed,
   type BillId,
+  type CarryAdjustment,
   type MeterId,
   type MonthRecord,
   type YearFile,
 } from '@rezsi/shared';
 import { api } from '../api';
-import { Badge, Card, Checks, MonthNav, toast } from '../components';
+import { Badge, Card, Checks, ConfirmDialog, DateInput, MonthNav, toast } from '../components';
 import { navigate, type Route } from '../router';
 import { useApp } from '../state';
 
@@ -81,6 +86,10 @@ function toRecord(draft: Draft, month: number): { record: MonthRecord; errors: F
       errors[key] = 'Adj meg dátumot';
       return undefined;
     }
+    if (!isValidIsoDate(r.date)) {
+      errors[key] = 'Érvénytelen dátum (év.hónap.nap)';
+      return undefined;
+    }
     return { value: v, date: r.date };
   };
   for (const m of METER_IDS) {
@@ -97,6 +106,10 @@ function toRecord(draft: Draft, month: number): { record: MonthRecord; errors: F
       errors[`bill-${b}`] = 'Érvénytelen összeg';
       continue;
     }
+    if (d.dueDate && !isValidIsoDate(d.dueDate)) {
+      errors[`bill-${b}`] = 'Érvénytelen határidő (év.hónap.nap)';
+      continue;
+    }
     record.bills[b] = { amount: Math.round(v), paid: d.paid, ...(d.dueDate ? { dueDate: d.dueDate } : {}) };
   }
   if (draft.note.trim()) record.note = draft.note.trim();
@@ -104,14 +117,45 @@ function toRecord(draft: Draft, month: number): { record: MonthRecord; errors: F
 }
 
 /** History with the draft month applied, for live consumption, suggestions and checks. */
-function draftHistory(years: YearFile[], year: number, record: MonthRecord): History {
+function draftFiles(years: YearFile[], year: number, record: MonthRecord): YearFile[] {
   const files = years.filter((f) => f.year !== year);
   const base = years.find((f) => f.year === year) ?? { schemaVersion: 1 as const, year, gasProfile: {}, months: [] };
   files.push({ ...base, months: [...base.months.filter((m) => m.month !== record.month), record].sort((a, b) => a.month - b.month) });
+  return files;
+}
+
+function draftHistory(years: YearFile[], year: number, record: MonthRecord): History {
+  const files = draftFiles(years, year, record);
   return new History(files);
 }
 
-function Field({ label, error, children, hint }: { label: string; error?: string; hint?: preact.ComponentChildren; children: preact.ComponentChildren }) {
+const SOURCE_LABEL: Record<CarryAdjustment['source'], string> = {
+  gas: 'Gáz',
+  electricity: 'Villany',
+  water: 'Víz',
+  gasReported: 'Diktált gáz',
+};
+
+/** "Későbbi hónapok frissítve: villany 2026.11. (3 550 → 4 000)" */
+function describeAdjustments(list: CarryAdjustment[]): string {
+  const items = list.map(
+    (a) =>
+      `${SOURCE_LABEL[a.source].toLowerCase()} ${a.year}.${String(a.month).padStart(2, '0')}. (${formatNumber(a.from)} → ${formatNumber(a.to)})`,
+  );
+  return `Későbbi hónapok óraállása frissítve: ${items.join(', ')}.`;
+}
+
+function Field({
+  label,
+  error,
+  children,
+  hint,
+}: {
+  label: string;
+  error?: string;
+  hint?: preact.ComponentChildren;
+  children: preact.ComponentChildren;
+}) {
   return (
     <div class={`field ${error ? 'has-error' : ''}`}>
       <span class="field-label">{label}</span>
@@ -122,7 +166,7 @@ function Field({ label, error, children, hint }: { label: string; error?: string
 }
 
 export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> }) {
-  const { data, config, today, applyYear } = useApp();
+  const { data, config, today, applyYears, dismissed, dismissCheck } = useApp();
   const [ty, tm] = today.split('-').map(Number);
   const year = route.year ?? ty;
   const month = route.month ?? tm;
@@ -156,8 +200,11 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
   const { record, errors } = toRecord(draft, month);
   const history = useMemo(() => draftHistory(years, year, record), [years, year, JSON.stringify(record)]);
   const checks = useMemo(
-    () => computeChecks(history, year, cfg, today).filter((c) => c.month === month && c.code !== 'reading_missing'),
-    [history, year, month, cfg, today],
+    () =>
+      withoutDismissed(computeChecks(history, year, cfg, today), dismissed).filter(
+        (c) => c.month === month && c.code !== 'reading_missing',
+      ),
+    [history, year, month, cfg, today, dismissed],
   );
   const suggestion = suggestGasReport(history, year, month);
   const hasErrors = Object.keys(errors).length > 0 || checks.some((c) => c.level === 'error');
@@ -174,7 +221,10 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
     navigate({ view: 'entry', year: y, month: m });
   };
 
-  const save = async (e: Event) => {
+  // Set when saving would raise readings of later months; the user confirms first (typo guard).
+  const [pending, setPending] = useState<{ record: MonthRecord; adjustments: CarryAdjustment[] }>();
+
+  const save = (e: Event) => {
     e.preventDefault();
     if (Object.keys(errors).length) return;
     const parsed = monthRecordSchema.safeParse(record);
@@ -182,12 +232,23 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
       setServerError(parsed.error.issues.map((i) => i.message).join('; '));
       return;
     }
+    const { adjustments } = carryForward(draftFiles(years, year, parsed.data), year, month);
+    if (adjustments.length) setPending({ record: parsed.data, adjustments });
+    else void doSave(parsed.data);
+  };
+
+  const doSave = async (rec: MonthRecord) => {
+    setPending(undefined);
     setSaving(true);
     try {
-      const res = await api.saveMonth(year, month, parsed.data);
-      applyYear(res.file);
+      const res = await api.saveMonth(year, month, rec);
+      applyYears(res.years);
       setServerError(undefined);
-      toast('Mentve');
+      toast(
+        res.adjustments.length ? `Mentve. ${describeAdjustments(res.adjustments)}` : 'Mentve',
+        'ok',
+        res.adjustments.length ? 7000 : undefined,
+      );
     } catch (err) {
       setServerError((err as Error).message);
       toast('Mentés sikertelen', 'bad');
@@ -200,170 +261,193 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
   const elWindow = monthlyWindow(year, month, cfg.electricityWindow);
 
   return (
-    <form class="stack entry" onSubmit={save} noValidate>
-      <div class="entry-head">
-        <h1 class="page-title">Rögzítés</h1>
-        <MonthNav year={year} month={month} onChange={goTo} />
-      </div>
+    <>
+      <form class="stack entry" onSubmit={save} noValidate>
+        <div class="entry-head">
+          <h1 class="page-title">Rögzítés</h1>
+          <MonthNav year={year} month={month} onChange={goTo} />
+        </div>
 
-      <Card title="Óraállások">
-        {METER_IDS.map((m) => {
-          const meter = METERS[m];
-          const prev = history.previous(m, year, month);
-          const cons = history.consumption(m, year, month);
-          const win = m === 'gas' ? gasWindow : m === 'electricity' ? elWindow : undefined;
-          return (
-            <div class="entry-row" key={m} style={{ '--cat': `var(--c-${m})` }}>
-              <Field
-                label={`${meter.label} (${meter.unit})`}
-                error={errors[m]}
-                hint={
-                  <>
-                    {prev ? `Előző: ${formatNumber(prev.value)} (${formatDate(prev.date)})` : 'Nincs előző óraállás'}
-                    {cons && record.readings[m] && (
-                      <>
-                        {' · '}fogyasztás: <strong>{formatQuantity(cons.value, meter.unit)}</strong>
-                        {cons.estimated && ' (becsült)'}
-                      </>
-                    )}
-                    {win && ` · leolvasás: ${win.start.slice(5).replace('-', '.')}–${win.end.slice(5).replace('-', '.')}`}
-                  </>
-                }
-              >
+        <Card title="Óraállások">
+          {METER_IDS.map((m) => {
+            const meter = METERS[m];
+            const prev = history.previous(m, year, month);
+            const cons = history.consumption(m, year, month);
+            const win = m === 'gas' ? gasWindow : m === 'electricity' ? elWindow : undefined;
+            return (
+              <div class="entry-row" key={m} style={{ '--cat': `var(--c-${m})` }}>
+                <Field
+                  label={`${meter.label} (${meter.unit})`}
+                  error={errors[m]}
+                  hint={
+                    <>
+                      {prev ? `Előző: ${formatNumber(prev.value)} (${formatDate(prev.date)})` : 'Nincs előző óraállás'}
+                      {cons && record.readings[m] && (
+                        <>
+                          {' · '}fogyasztás: <strong>{formatQuantity(cons.value, meter.unit)}</strong>
+                          {cons.estimated && ' (becsült)'}
+                        </>
+                      )}
+                      {win && ` · leolvasás: ${formatDateRange(win.start, win.end)}`}
+                    </>
+                  }
+                >
+                  <div class="input-pair">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      autocomplete="off"
+                      aria-label={`${meter.label} óraállás`}
+                      value={draft.readings[m].value}
+                      onInput={(e) => update((d) => void (d.readings[m].value = (e.target as HTMLInputElement).value))}
+                    />
+                    <DateInput
+                      label={`${meter.label} leolvasás dátuma`}
+                      value={draft.readings[m].date}
+                      onChange={(v) => update((d) => void (d.readings[m].date = v))}
+                    />
+                  </div>
+                </Field>
+              </div>
+            );
+          })}
+        </Card>
+
+        <Card title="Gáz diktálás" class="cat-gas">
+          <Field
+            label="Diktált óraállás (m³)"
+            error={errors.gasReported}
+            hint={`Diktálási ablak: ${formatDateRange(gasWindow.start, gasWindow.end)}`}
+          >
+            <div class="input-pair">
+              <input
+                type="text"
+                inputMode="decimal"
+                autocomplete="off"
+                aria-label="Diktált gázóra-állás"
+                placeholder={suggestion ? formatNumber(suggestion.value) : ''}
+                value={draft.reported.value}
+                onInput={(e) => update((d) => void (d.reported.value = (e.target as HTMLInputElement).value))}
+              />
+              <DateInput label="Diktálás dátuma" value={draft.reported.date} onChange={(v) => update((d) => void (d.reported.date = v))} />
+            </div>
+          </Field>
+          {suggestion ? (
+            <div class="suggestion">
+              <div>
+                Javasolt: <strong>{formatQuantity(suggestion.value, 'm³', 0)}</strong>
+                <span class="muted">
+                  {' '}
+                  (előző diktált {formatNumber(suggestion.previousReported)} + jelleggörbe {formatNumber(suggestion.profile)}
+                  {suggestion.cappedByActual && ', a tényleges óraállásra korlátozva'})
+                </span>
+              </div>
+              {suggestion.deficitAfter !== undefined && (
+                <div class="muted">Diktálás után nem diktált: {formatQuantity(suggestion.deficitAfter, 'm³')}</div>
+              )}
+              {suggestion.deficitWarning && (
+                <div>
+                  <Badge tone="warn">Figyelem</Badge> Az eltérés nagyobb, mint az év hátralévő jelleggörbéje (
+                  {formatQuantity(suggestion.remainingProfile, 'm³')}).
+                </div>
+              )}
+              {parseNumberInput(draft.reported.value) !== suggestion.value && (
+                <button
+                  type="button"
+                  class="btn btn-small btn-secondary"
+                  onClick={() => update((d) => void (d.reported.value = String(suggestion.value)))}
+                >
+                  Javasolt érték beírása
+                </button>
+              )}
+            </div>
+          ) : (
+            <p class="muted">Javaslathoz kell egy korábbi diktált érték és a havi jelleggörbe (Beállítások).</p>
+          )}
+        </Card>
+
+        <Card title="Számlák">
+          {BILL_IDS.map((b) => (
+            <div class="entry-row bill-row" key={b} style={{ '--cat': `var(--c-${b})` }}>
+              <Field label={`${BILLS[b].label} (Ft)`} error={errors[`bill-${b}`]}>
                 <div class="input-pair">
                   <input
                     type="text"
-                    inputMode="decimal"
+                    inputMode="numeric"
                     autocomplete="off"
-                    aria-label={`${meter.label} óraállás`}
-                    value={draft.readings[m].value}
-                    onInput={(e) => update((d) => void (d.readings[m].value = (e.target as HTMLInputElement).value))}
+                    aria-label={`${BILLS[b].label} fizetendő`}
+                    value={draft.bills[b].amount}
+                    onInput={(e) => update((d) => void (d.bills[b].amount = (e.target as HTMLInputElement).value))}
                   />
-                  <input
-                    type="date"
-                    aria-label={`${meter.label} leolvasás dátuma`}
-                    value={draft.readings[m].date}
-                    onInput={(e) => update((d) => void (d.readings[m].date = (e.target as HTMLInputElement).value))}
-                  />
+                  <label class="switch">
+                    <input
+                      type="checkbox"
+                      checked={draft.bills[b].paid}
+                      onChange={(e) => update((d) => void (d.bills[b].paid = (e.target as HTMLInputElement).checked))}
+                    />
+                    <span>Fizetve</span>
+                  </label>
                 </div>
               </Field>
-            </div>
-          );
-        })}
-      </Card>
-
-      <Card title="Gáz diktálás" class="cat-gas">
-        <Field
-          label="Diktált óraállás (m³)"
-          error={errors.gasReported}
-          hint={`Diktálási ablak: ${gasWindow.start.slice(5).replace('-', '.')}–${gasWindow.end.slice(5).replace('-', '.')}`}
-        >
-          <div class="input-pair">
-            <input
-              type="text"
-              inputMode="decimal"
-              autocomplete="off"
-              aria-label="Diktált gázóra-állás"
-              placeholder={suggestion ? formatNumber(suggestion.value) : ''}
-              value={draft.reported.value}
-              onInput={(e) => update((d) => void (d.reported.value = (e.target as HTMLInputElement).value))}
-            />
-            <input
-              type="date"
-              aria-label="Diktálás dátuma"
-              value={draft.reported.date}
-              onInput={(e) => update((d) => void (d.reported.date = (e.target as HTMLInputElement).value))}
-            />
-          </div>
-        </Field>
-        {suggestion ? (
-          <div class="suggestion">
-            <div>
-              Javasolt: <strong>{formatQuantity(suggestion.value, 'm³', 0)}</strong>
-              <span class="muted">
-                {' '}
-                (előző diktált {formatNumber(suggestion.previousReported)} + jelleggörbe {formatNumber(suggestion.profile)}
-                {suggestion.cappedByActual && ', a tényleges óraállásra korlátozva'})
-              </span>
-            </div>
-            {suggestion.deficitAfter !== undefined && (
-              <div class="muted">Diktálás után nem diktált: {formatQuantity(suggestion.deficitAfter, 'm³')}</div>
-            )}
-            {suggestion.deficitWarning && (
-              <div>
-                <Badge tone="warn">Figyelem</Badge> Az eltérés nagyobb, mint az év hátralévő jelleggörbéje ({formatQuantity(suggestion.remainingProfile, 'm³')}).
-              </div>
-            )}
-            {parseNumberInput(draft.reported.value) !== suggestion.value && (
-              <button type="button" class="btn btn-small btn-secondary" onClick={() => update((d) => void (d.reported.value = String(suggestion.value)))}>
-                Javasolt érték beírása
-              </button>
-            )}
-          </div>
-        ) : (
-          <p class="muted">Javaslathoz kell egy korábbi diktált érték és a havi jelleggörbe (Beállítások).</p>
-        )}
-      </Card>
-
-      <Card title="Számlák">
-        {BILL_IDS.map((b) => (
-          <div class="entry-row bill-row" key={b} style={{ '--cat': `var(--c-${b})` }}>
-            <Field label={`${BILLS[b].label} (Ft)`} error={errors[`bill-${b}`]}>
-              <div class="input-pair">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autocomplete="off"
-                  aria-label={`${BILLS[b].label} fizetendő`}
-                  value={draft.bills[b].amount}
-                  onInput={(e) => update((d) => void (d.bills[b].amount = (e.target as HTMLInputElement).value))}
-                />
-                <label class="switch">
-                  <input
-                    type="checkbox"
-                    checked={draft.bills[b].paid}
-                    onChange={(e) => update((d) => void (d.bills[b].paid = (e.target as HTMLInputElement).checked))}
+              {parseNumberInput(draft.bills[b].amount) !== undefined && !draft.bills[b].paid && (
+                <Field label="Határidő">
+                  <DateInput
+                    label={`${BILLS[b].label} fizetési határidő`}
+                    value={draft.bills[b].dueDate}
+                    onChange={(v) => update((d) => void (d.bills[b].dueDate = v))}
                   />
-                  <span>Fizetve</span>
-                </label>
-              </div>
-            </Field>
-            {parseNumberInput(draft.bills[b].amount) !== undefined && !draft.bills[b].paid && (
-              <Field label="Határidő">
-                <input
-                  type="date"
-                  aria-label={`${BILLS[b].label} fizetési határidő`}
-                  value={draft.bills[b].dueDate}
-                  onInput={(e) => update((d) => void (d.bills[b].dueDate = (e.target as HTMLInputElement).value))}
-                />
-              </Field>
-            )}
-          </div>
-        ))}
-      </Card>
-
-      <Card title="Megjegyzés">
-        <textarea
-          rows={3}
-          aria-label="Megjegyzés"
-          value={draft.note}
-          onInput={(e) => update((d) => void (d.note = (e.target as HTMLTextAreaElement).value))}
-        />
-      </Card>
-
-      {(checks.length > 0 || serverError) && (
-        <Card title="Ellenőrzés">
-          {serverError && <p class="text-bad">{serverError}</p>}
-          <Checks checks={checks} />
+                </Field>
+              )}
+            </div>
+          ))}
         </Card>
-      )}
 
-      <div class="save-bar">
-        <span class="muted">{dirty ? 'Mentetlen módosítások' : 'Nincs módosítás'}</span>
-        <button type="submit" class="btn" disabled={saving || !dirty || Object.keys(errors).length > 0}>
-          {saving ? 'Mentés…' : hasErrors ? 'Mentés (hibával)' : 'Mentés'}
-        </button>
-      </div>
-    </form>
+        <Card title="Megjegyzés">
+          <textarea
+            rows={3}
+            aria-label="Megjegyzés"
+            value={draft.note}
+            onInput={(e) => update((d) => void (d.note = (e.target as HTMLTextAreaElement).value))}
+          />
+        </Card>
+
+        {(checks.length > 0 || serverError) && (
+          <Card title="Ellenőrzés">
+            {serverError && <p class="text-bad">{serverError}</p>}
+            <Checks checks={checks} onDismiss={(c) => void dismissCheck(c)} />
+          </Card>
+        )}
+
+        <div class="save-bar">
+          <span class="muted">{dirty ? 'Mentetlen módosítások' : 'Nincs módosítás'}</span>
+          <button type="submit" class="btn" disabled={saving || !dirty || Object.keys(errors).length > 0}>
+            {saving ? 'Mentés…' : hasErrors ? 'Mentés (hibával)' : 'Mentés'}
+          </button>
+        </div>
+      </form>
+      {pending && (
+        <ConfirmDialog
+          title="Későbbi hónapok is változnak"
+          confirmLabel="Mentés és frissítés"
+          onCancel={() => setPending(undefined)}
+          onConfirm={() => void doSave(pending.record)}
+        >
+          <p>Az óraállás nem csökkenhet, ezért mentéskor ezek a későbbi értékek is az új óraállásra emelkednek:</p>
+          <ul class="adjust-list">
+            {pending.adjustments.map((a) => (
+              <li key={`${a.year}-${a.month}-${a.source}`}>
+                <span>
+                  {SOURCE_LABEL[a.source]} · {a.year}.{String(a.month).padStart(2, '0')}.
+                </span>
+                <span class="num">
+                  {formatNumber(a.from)} → <strong>{formatNumber(a.to)}</strong>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p class="muted small">Ha elírás történt, válaszd a „Mégse” gombot, és javítsd az értéket mentés előtt.</p>
+        </ConfirmDialog>
+      )}
+    </>
   );
 }
