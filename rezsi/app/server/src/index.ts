@@ -18,7 +18,7 @@ const log = logger('main');
 async function main(): Promise<void> {
   const env = loadEnv();
   const options = loadOptions(env.dataDir);
-  log.info(`Rezsi ${VERSION} starting (data: ${env.dataDir}, ${env.supervisor ? 'add-on mode' : 'development mode'})`);
+  log.info(`RezsiDaemon ${VERSION} starting (data: ${env.dataDir}, ${env.supervisor ? 'add-on mode' : 'development mode'})`);
 
   const store = new DataStore(env.dataDir);
   await store.init();

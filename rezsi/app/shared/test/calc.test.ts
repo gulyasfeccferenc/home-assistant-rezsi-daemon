@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeYear, DEFAULT_CALC_CONFIG, History, suggestGasReport, yoy } from '../src/index.js';
+import { checkKey, computeYear, DEFAULT_CALC_CONFIG, History, suggestGasReport, withoutDismissed, yoy } from '../src/index.js';
 import { year } from './helpers.js';
 
 const cfg = DEFAULT_CALC_CONFIG;
@@ -186,6 +186,15 @@ describe('checks', () => {
     // Gas: September window passed; October's (10.20–10.28) not yet.
     expect(missing.filter((c) => c.category === 'gas').map((c) => c.month)).toEqual([9]);
     expect(missing.filter((c) => c.category === 'gasReported').map((c) => c.month)).toEqual([9]);
+  });
+
+  it('filters dismissed checks by key', () => {
+    const h = new History([year(2026, { 1: { electricity: 500 }, 2: { electricity: 400 } })]);
+    const checks = computeYear(h, 2026, cfg, '2026-02-15').checks;
+    const key = checkKey(checks[0]);
+    expect(key).toBe('reading_decreased|2026|2|electricity');
+    expect(withoutDismissed(checks, [key]).some((c) => checkKey(c) === key)).toBe(false);
+    expect(withoutDismissed(checks, [])).toBe(checks);
   });
 
   it('reports overdue water readings', () => {

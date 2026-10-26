@@ -21,7 +21,7 @@ exports[`export files > CSV (snapshot) 1`] = `
 `;
 
 exports[`export files > Markdown report (snapshot) 1`] = `
-"# Rezsi – 2026. október
+"# RezsiDaemon – 2026. október
 
 ## Mérőállások és fogyasztás
 

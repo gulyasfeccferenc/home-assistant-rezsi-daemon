@@ -25,8 +25,8 @@ CMD ["node", "--enable-source-maps", "/opt/rezsi/server/dist/index.js"]
 
 LABEL \
   io.hass.type="app" \
-  io.hass.name="Rezsi" \
+  io.hass.name="RezsiDaemon" \
   io.hass.description="Household utility tracker with reminders and git export" \
   io.hass.arch="aarch64|amd64" \
-  org.opencontainers.image.title="Rezsi" \
+  org.opencontainers.image.title="RezsiDaemon" \
   org.opencontainers.image.source="https://github.com/gulyasfeccferenc/home-assistant-rezsi-daemon"

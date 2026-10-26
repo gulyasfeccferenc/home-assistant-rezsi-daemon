@@ -6,6 +6,7 @@ import {
   calcConfigFromOptions,
   computeYear,
   emptyYearFile,
+  withoutDismissed,
   zonedParts,
   type Options,
 } from '@rezsi/shared';
@@ -89,7 +90,9 @@ export function createApp(deps: AppDeps): Hono {
   );
 
   /** Everything the UI needs in one request; computation happens client-side with the shared package. */
-  api.get('/data', (c) => c.json({ years: store.allYears(), tariffs: store.getTariffs(), loadErrors: store.loadErrors }));
+  api.get('/data', (c) =>
+    c.json({ years: store.allYears(), tariffs: store.getTariffs(), dismissedChecks: store.getDismissedChecks(), loadErrors: store.loadErrors }),
+  );
 
   api.get('/years', (c) => c.json(store.listYears()));
 
@@ -105,8 +108,8 @@ export function createApp(deps: AppDeps): Hono {
     const body = await c.req.json().catch(() => {
       throw new ValidationError('Hibás JSON.');
     });
-    const file = await store.upsertMonth(year, month, body);
-    return c.json({ file, computed: computeYear(store.history(), year, cfg, zonedParts().date) });
+    const { file, adjustments } = await store.upsertMonth(year, month, body);
+    return c.json({ file, adjustments, years: store.allYears(), computed: computeYear(store.history(), year, cfg, zonedParts().date) });
   });
 
   api.put('/years/:year/profile', async (c) => {
@@ -138,13 +141,24 @@ export function createApp(deps: AppDeps): Hono {
       meters: reminders.due(),
       reminders: state.reminders,
       lastReminderCheck: state.lastReminderCheck,
-      checks: computed.checks,
+      checks: withoutDismissed(computed.checks, store.getDismissedChecks()),
       loadErrors: store.loadErrors,
       unpaid,
       totals: computed.totals,
       export: { ...state.export, enabled: options.export_enabled, remoteConfigured: !!options.git_repo_url },
     });
   });
+
+  /** Delete (hide) warnings: `{ keys: string[] }`. */
+  api.post('/checks/dismiss', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { keys?: unknown };
+    const keys = Array.isArray(body.keys) ? body.keys.filter((k): k is string => typeof k === 'string' && k.length > 0 && k.length <= 200) : [];
+    if (!keys.length) throw new ValidationError('Hiányzó figyelmeztetés-azonosító.');
+    return c.json({ dismissedChecks: await store.setDismissedChecks(keys, true) });
+  });
+
+  /** Restore all deleted warnings. */
+  api.delete('/checks/dismiss', async (c) => c.json({ dismissedChecks: await store.setDismissedChecks([], false) }));
 
   api.get('/tariffs', (c) => c.json(store.getTariffs()));
   api.put('/tariffs', async (c) => c.json(await store.setTariffs(await c.req.json())));

@@ -66,7 +66,7 @@ describe('ExportService with git', () => {
     const r1 = await svc.run('monthly', new Date('2026-10-01T04:00:00Z'));
     expect(r1).toMatchObject({ ok: true, pushed: true });
     expect(git(remote, 'log', '--format=%s|%an', 'main')).toBe('report: 2026-09|Teszt');
-    expect(git(remote, 'show', 'main:reports/2026-10.md')).toContain('# Rezsi – 2026. október');
+    expect(git(remote, 'show', 'main:reports/2026-10.md')).toContain('# RezsiDaemon – 2026. október');
     expect(store.getState().export).toMatchObject({ lastMonthly: '2026-10', lastCommitMessage: 'report: 2026-09' });
 
     const r2 = await svc.run('manual', new Date('2026-10-08T10:00:00Z'));

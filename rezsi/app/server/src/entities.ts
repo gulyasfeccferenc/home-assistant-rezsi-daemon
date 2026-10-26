@@ -36,7 +36,7 @@ export class EntityPublisher {
       const { year, month, date } = zonedParts();
       for (const due of this.reminders.due()) {
         await this.ha.setState(`binary_sensor.rezsi_${due.meter}_due`, due.status === 'due' || due.status === 'overdue' ? 'on' : 'off', {
-          friendly_name: `Rezsi ${METERS[due.meter].label.toLowerCase()} leolvasás esedékes`,
+          friendly_name: `RezsiDaemon ${METERS[due.meter].label.toLowerCase()} leolvasás esedékes`,
           icon: 'mdi:counter',
           status: due.status,
           window_start: due.windowStart ?? null,
@@ -48,7 +48,7 @@ export class EntityPublisher {
       const money = { unit_of_measurement: 'Ft', device_class: 'monetary', icon: 'mdi:cash' };
       await this.ha.setState('sensor.rezsi_month_total', computed.months[month - 1].total ?? 0, {
         ...money,
-        friendly_name: 'Rezsi havi összesen',
+        friendly_name: 'RezsiDaemon havi összesen',
         year,
         month,
       });
@@ -58,7 +58,7 @@ export class EntityPublisher {
         .reduce((sum, b) => sum + (b && !b.paid ? b.amount : 0), 0);
       await this.ha.setState('sensor.rezsi_unpaid_total', unpaid, {
         ...money,
-        friendly_name: 'Rezsi kifizetetlen',
+        friendly_name: 'RezsiDaemon kifizetetlen',
       });
     } catch (err) {
       log.warn('Publishing entities failed', err);

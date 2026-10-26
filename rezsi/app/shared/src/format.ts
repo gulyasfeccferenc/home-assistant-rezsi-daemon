@@ -41,11 +41,6 @@ export function formatDate(date: string | undefined | null): string {
   return `${y}.${m}.${d}.`;
 }
 
-/** `2026-10-20` -> `10.20` */
-export function formatMonthDay(date: string): string {
-  const [, m, d] = date.split('-');
-  return `${m}.${d}`;
-}
 
 /**
  * Parses user input written either the Hungarian way (`1 234,5`) or the English way (`1234.5`).
@@ -60,7 +55,22 @@ export function parseNumberInput(raw: string): number | undefined {
   return Number(normalized);
 }
 
-/** `2026-10-20`, `2026-10-28` -> `10.20–10.28` */
-export function formatMonthDayRange(start: string, end: string): string {
-  return `${formatMonthDay(start)}–${formatMonthDay(end)}`;
+/** `2026-10-20`, `2026-10-28` -> `2026.10.20.–2026.10.28.` (dates are always year.month.day). */
+export function formatDateRange(start: string, end: string): string {
+  return `${formatDate(start)}–${formatDate(end)}`;
+}
+
+/**
+ * Parses a typed date in year.month.day order (`2026.10.08.`, `2026. 10. 8.`, `2026-10-08`,
+ * `20261008`) into `YYYY-MM-DD`. Returns undefined for empty input and null when invalid.
+ */
+export function parseDateInput(raw: string): string | undefined | null {
+  const s = raw.trim();
+  if (!s) return undefined;
+  const m = /^(\d{4})[.\-/\s]*(\d{1,2})[.\-/\s]*(\d{1,2})\.?$/.exec(s) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(s);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  if (mo < 1 || mo > 12 || d < 1 || d > dim) return null;
+  return `${m[1]}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }

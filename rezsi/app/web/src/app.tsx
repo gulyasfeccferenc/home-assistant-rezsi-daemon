@@ -20,8 +20,9 @@ function Shell() {
   const { loading, error, data, reload } = useApp();
   return (
     <div class="shell">
+      <header class="topbar">RezsiDaemon</header>
       <nav class="nav" aria-label="Fő navigáció">
-        <span class="brand">Rezsi</span>
+        <span class="brand">RezsiDaemon</span>
         {NAV.map((n) => (
           <a key={n.view} href={href({ view: n.view } as Route)} class={route.view === n.view ? 'active' : ''} aria-current={route.view === n.view ? 'page' : undefined}>
             <span class="nav-icon" aria-hidden="true">

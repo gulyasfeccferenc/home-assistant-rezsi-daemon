@@ -4,23 +4,27 @@ import {
   BILL_IDS,
   computeChecks,
   formatDate,
+  formatDateRange,
   formatNumber,
   formatQuantity,
   History,
   isoDate,
+  isValidIsoDate,
   METERS,
   METER_IDS,
   monthlyWindow,
   monthRecordSchema,
   parseNumberInput,
   suggestGasReport,
+  withoutDismissed,
   type BillId,
+  type CarryAdjustment,
   type MeterId,
   type MonthRecord,
   type YearFile,
 } from '@rezsi/shared';
 import { api } from '../api';
-import { Badge, Card, Checks, MonthNav, toast } from '../components';
+import { Badge, Card, Checks, DateInput, MonthNav, toast } from '../components';
 import { navigate, type Route } from '../router';
 import { useApp } from '../state';
 
@@ -81,6 +85,10 @@ function toRecord(draft: Draft, month: number): { record: MonthRecord; errors: F
       errors[key] = 'Adj meg dátumot';
       return undefined;
     }
+    if (!isValidIsoDate(r.date)) {
+      errors[key] = 'Érvénytelen dátum (év.hónap.nap)';
+      return undefined;
+    }
     return { value: v, date: r.date };
   };
   for (const m of METER_IDS) {
@@ -97,6 +105,10 @@ function toRecord(draft: Draft, month: number): { record: MonthRecord; errors: F
       errors[`bill-${b}`] = 'Érvénytelen összeg';
       continue;
     }
+    if (d.dueDate && !isValidIsoDate(d.dueDate)) {
+      errors[`bill-${b}`] = 'Érvénytelen határidő (év.hónap.nap)';
+      continue;
+    }
     record.bills[b] = { amount: Math.round(v), paid: d.paid, ...(d.dueDate ? { dueDate: d.dueDate } : {}) };
   }
   if (draft.note.trim()) record.note = draft.note.trim();
@@ -111,6 +123,21 @@ function draftHistory(years: YearFile[], year: number, record: MonthRecord): His
   return new History(files);
 }
 
+const SOURCE_LABEL: Record<CarryAdjustment['source'], string> = {
+  gas: 'gáz',
+  electricity: 'villany',
+  water: 'víz',
+  gasReported: 'diktált gáz',
+};
+
+/** "Későbbi hónapok frissítve: villany 2026.11. (3 550 → 4 000)" */
+function describeAdjustments(list: CarryAdjustment[]): string {
+  const items = list.map(
+    (a) => `${SOURCE_LABEL[a.source]} ${a.year}.${String(a.month).padStart(2, '0')}. (${formatNumber(a.from)} → ${formatNumber(a.to)})`,
+  );
+  return `Későbbi hónapok óraállása frissítve: ${items.join(', ')}.`;
+}
+
 function Field({ label, error, children, hint }: { label: string; error?: string; hint?: preact.ComponentChildren; children: preact.ComponentChildren }) {
   return (
     <div class={`field ${error ? 'has-error' : ''}`}>
@@ -122,7 +149,7 @@ function Field({ label, error, children, hint }: { label: string; error?: string
 }
 
 export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> }) {
-  const { data, config, today, applyYear } = useApp();
+  const { data, config, today, applyYears, dismissed, dismissCheck } = useApp();
   const [ty, tm] = today.split('-').map(Number);
   const year = route.year ?? ty;
   const month = route.month ?? tm;
@@ -156,8 +183,8 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
   const { record, errors } = toRecord(draft, month);
   const history = useMemo(() => draftHistory(years, year, record), [years, year, JSON.stringify(record)]);
   const checks = useMemo(
-    () => computeChecks(history, year, cfg, today).filter((c) => c.month === month && c.code !== 'reading_missing'),
-    [history, year, month, cfg, today],
+    () => withoutDismissed(computeChecks(history, year, cfg, today), dismissed).filter((c) => c.month === month && c.code !== 'reading_missing'),
+    [history, year, month, cfg, today, dismissed],
   );
   const suggestion = suggestGasReport(history, year, month);
   const hasErrors = Object.keys(errors).length > 0 || checks.some((c) => c.level === 'error');
@@ -185,9 +212,9 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
     setSaving(true);
     try {
       const res = await api.saveMonth(year, month, parsed.data);
-      applyYear(res.file);
+      applyYears(res.years);
       setServerError(undefined);
-      toast('Mentve');
+      toast(res.adjustments.length ? `Mentve. ${describeAdjustments(res.adjustments)}` : 'Mentve', 'ok', res.adjustments.length ? 7000 : undefined);
     } catch (err) {
       setServerError((err as Error).message);
       toast('Mentés sikertelen', 'bad');
@@ -226,7 +253,7 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
                         {cons.estimated && ' (becsült)'}
                       </>
                     )}
-                    {win && ` · leolvasás: ${win.start.slice(5).replace('-', '.')}–${win.end.slice(5).replace('-', '.')}`}
+                    {win && ` · leolvasás: ${formatDateRange(win.start, win.end)}`}
                   </>
                 }
               >
@@ -239,11 +266,10 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
                     value={draft.readings[m].value}
                     onInput={(e) => update((d) => void (d.readings[m].value = (e.target as HTMLInputElement).value))}
                   />
-                  <input
-                    type="date"
-                    aria-label={`${meter.label} leolvasás dátuma`}
+                  <DateInput
+                    label={`${meter.label} leolvasás dátuma`}
                     value={draft.readings[m].date}
-                    onInput={(e) => update((d) => void (d.readings[m].date = (e.target as HTMLInputElement).value))}
+                    onChange={(v) => update((d) => void (d.readings[m].date = v))}
                   />
                 </div>
               </Field>
@@ -256,7 +282,7 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
         <Field
           label="Diktált óraállás (m³)"
           error={errors.gasReported}
-          hint={`Diktálási ablak: ${gasWindow.start.slice(5).replace('-', '.')}–${gasWindow.end.slice(5).replace('-', '.')}`}
+          hint={`Diktálási ablak: ${formatDateRange(gasWindow.start, gasWindow.end)}`}
         >
           <div class="input-pair">
             <input
@@ -268,12 +294,7 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
               value={draft.reported.value}
               onInput={(e) => update((d) => void (d.reported.value = (e.target as HTMLInputElement).value))}
             />
-            <input
-              type="date"
-              aria-label="Diktálás dátuma"
-              value={draft.reported.date}
-              onInput={(e) => update((d) => void (d.reported.date = (e.target as HTMLInputElement).value))}
-            />
+            <DateInput label="Diktálás dátuma" value={draft.reported.date} onChange={(v) => update((d) => void (d.reported.date = v))} />
           </div>
         </Field>
         {suggestion ? (
@@ -330,11 +351,10 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
             </Field>
             {parseNumberInput(draft.bills[b].amount) !== undefined && !draft.bills[b].paid && (
               <Field label="Határidő">
-                <input
-                  type="date"
-                  aria-label={`${BILLS[b].label} fizetési határidő`}
+                <DateInput
+                  label={`${BILLS[b].label} fizetési határidő`}
                   value={draft.bills[b].dueDate}
-                  onInput={(e) => update((d) => void (d.bills[b].dueDate = (e.target as HTMLInputElement).value))}
+                  onChange={(v) => update((d) => void (d.bills[b].dueDate = v))}
                 />
               </Field>
             )}
@@ -354,7 +374,7 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
       {(checks.length > 0 || serverError) && (
         <Card title="Ellenőrzés">
           {serverError && <p class="text-bad">{serverError}</p>}
-          <Checks checks={checks} />
+          <Checks checks={checks} onDismiss={(c) => void dismissCheck(c)} />
         </Card>
       )}
 

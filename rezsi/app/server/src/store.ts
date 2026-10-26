@@ -2,7 +2,9 @@ import { mkdir, readdir, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  carryForward,
   CURRENT_SCHEMA_VERSION,
+  type CarryAdjustment,
   describeZodError,
   emptyYearFile,
   History,
@@ -63,7 +65,7 @@ function emptyState(): AppState {
 export class DataStore {
   readonly yearsDir: string;
   private readonly years = new Map<number, YearFile>();
-  private settings: SettingsFile = { schemaVersion: CURRENT_SCHEMA_VERSION, tariffs: [] };
+  private settings: SettingsFile = { schemaVersion: CURRENT_SCHEMA_VERSION, tariffs: [], dismissedChecks: [] };
   private state: AppState = emptyState();
   private historyCache?: History;
   private readonly mutex = new Mutex();
@@ -136,16 +138,20 @@ export class DataStore {
     return (this.historyCache ??= new History(this.allYears()));
   }
 
-  private async saveYear(file: YearFile): Promise<YearFile> {
+  private async saveYear(file: YearFile, notify = true): Promise<YearFile> {
     const parsed = yearFileSchema.safeParse(file);
     if (!parsed.success) throw new ValidationError(describeZodError(parsed.error));
     await atomicWriteJson(join(this.yearsDir, `${parsed.data.year}.json`), parsed.data);
     this.years.set(parsed.data.year, parsed.data);
-    this.changed();
+    if (notify) this.changed();
     return parsed.data;
   }
 
-  upsertMonth(year: number, month: number, input: unknown): Promise<YearFile> {
+  /**
+   * Saves a month. Later months whose readings are lower than the saved ones are raised to them
+   * (meters never go backwards); the adjustments are returned so the UI can report them.
+   */
+  upsertMonth(year: number, month: number, input: unknown): Promise<{ file: YearFile; adjustments: CarryAdjustment[] }> {
     return this.mutex.run(async () => {
       const parsed = monthRecordSchema.safeParse(input);
       if (!parsed.success) throw new ValidationError(describeZodError(parsed.error));
@@ -154,7 +160,12 @@ export class DataStore {
       const isEmpty = isEmptyRecord(parsed.data);
       file.months = file.months.filter((m) => m.month !== month);
       if (!isEmpty) file.months.push(parsed.data);
-      return this.saveYear(file);
+      const all = [...this.allYears().filter((f) => f.year !== year), file];
+      const { changed, adjustments } = carryForward(all, year, month);
+      const saved = await this.saveYear(changed.find((f) => f.year === year) ?? file, false);
+      for (const f of changed) if (f.year !== year) await this.saveYear(f, false);
+      this.changed();
+      return { file: saved, adjustments };
     });
   }
 
@@ -207,6 +218,24 @@ export class DataStore {
       await atomicWriteJson(join(this.dataDir, 'settings.json'), settings);
       this.settings = settings;
       return settings.tariffs;
+    });
+  }
+
+  getDismissedChecks(): string[] {
+    return this.settings.dismissedChecks;
+  }
+
+  /** Remembers (or with `dismissed: false` forgets) deleted warnings. Empty `keys` + false = restore all. */
+  setDismissedChecks(keys: string[], dismissed: boolean): Promise<string[]> {
+    return this.mutex.run(async () => {
+      const current = new Set(this.settings.dismissedChecks);
+      if (dismissed) keys.forEach((k) => current.add(k));
+      else if (keys.length === 0) current.clear();
+      else keys.forEach((k) => current.delete(k));
+      const settings = settingsFileSchema.parse({ ...this.settings, dismissedChecks: [...current] });
+      await atomicWriteJson(join(this.dataDir, 'settings.json'), settings);
+      this.settings = settings;
+      return settings.dismissedChecks;
     });
   }
 

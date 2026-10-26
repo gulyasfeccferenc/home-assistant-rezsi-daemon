@@ -51,7 +51,7 @@ export async function writeExportFiles(dir: string, store: DataStore, options: O
     await out(`data/${y}.json`, toJson(file));
     await out(`csv/${y}.csv`, yearToCsv(file));
     for (const rec of file.months) {
-      await out(`reports/${y}-${String(rec.month).padStart(2, '0')}.md`, monthlyReport(history, y, rec.month, cfg, today));
+      await out(`reports/${y}-${String(rec.month).padStart(2, '0')}.md`, monthlyReport(history, y, rec.month, cfg, today, store.getDismissedChecks()));
     }
     const xlsxName = `rezsi-${y}.xlsx`;
     const signature = createHash('sha256')
@@ -159,7 +159,7 @@ export class ExportService {
     if (notifyError) {
       try {
         await this.ha.notify(o.notify_service, {
-          title: 'Rezsi – export hiba',
+          title: 'RezsiDaemon – export hiba',
           message: `Az exportálás nem sikerült: ${result.error}`.slice(0, 300),
           data: { tag: 'rezsi-export', group: 'rezsi' },
         });

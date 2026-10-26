@@ -61,6 +61,38 @@ describe('HTTP API', () => {
     expect(status.unpaid).toEqual([{ year: 2026, month: 10, bill: 'telecom', amount: 10990, dueDate: '2026-10-25' }]);
   });
 
+  it('deletes warnings and restores them', async () => {
+    const { app } = await setup();
+    const before = await body(app.request('/api/status'));
+    const target = before.checks.find((c: { code: string }) => c.code === 'bill_unpaid' || c.code === 'bill_overdue');
+    expect(target).toBeDefined();
+    const key = `${target.code}|${target.year}|${target.month}|${target.category}`;
+    expect((await app.request('/api/checks/dismiss', { method: 'POST', body: '{}' })).status).toBe(400);
+    const res = await body(app.request('/api/checks/dismiss', { method: 'POST', body: JSON.stringify({ keys: [key] }) }));
+    expect(res.dismissedChecks).toEqual([key]);
+    const after = await body(app.request('/api/status'));
+    expect(after.checks.length).toBe(before.checks.length - 1);
+    expect((await body(app.request('/api/data'))).dismissedChecks).toEqual([key]);
+    await app.request('/api/checks/dismiss', { method: 'DELETE' });
+    expect((await body(app.request('/api/status'))).checks.length).toBe(before.checks.length);
+  });
+
+  it('reports carried-forward readings when saving', async () => {
+    const { app } = await setup();
+    await app.request('/api/years/2026/months/11', {
+      method: 'PUT',
+      body: JSON.stringify({ month: 11, readings: { electricity: { value: 43100, date: '2026-11-09' } }, bills: {} }),
+    });
+    const res = await body(
+      app.request('/api/years/2026/months/10', {
+        method: 'PUT',
+        body: JSON.stringify({ month: 10, readings: { electricity: { value: 43200, date: '2026-10-10' } }, bills: {} }),
+      }),
+    );
+    expect(res.adjustments).toEqual([{ year: 2026, month: 11, source: 'electricity', from: 43100, to: 43200 }]);
+    expect(res.years.find((y: { year: number }) => y.year === 2026).months.find((m: { month: number }) => m.month === 11).readings.electricity.value).toBe(43200);
+  });
+
   it('stores tariffs', async () => {
     const { app } = await setup();
     const res = await app.request('/api/tariffs', { method: 'PUT', body: '[{"bill":"gas","validFrom":"2026-01-01","unitPrice":102}]' });

@@ -205,6 +205,19 @@ export interface Check {
   message: string;
 }
 
+/**
+ * Stable identity of a check, used to remember which warnings the user deleted.
+ * It does not include the message, so a dismissed warning stays hidden even if its numbers change.
+ */
+export function checkKey(c: Pick<Check, 'code' | 'year' | 'month' | 'category'>): string {
+  return `${c.code}|${c.year}|${c.month}|${c.category ?? ''}`;
+}
+
+export function withoutDismissed(checks: Check[], dismissed: Iterable<string>): Check[] {
+  const set = dismissed instanceof Set ? (dismissed as Set<string>) : new Set(dismissed);
+  return set.size ? checks.filter((c) => !set.has(checkKey(c))) : checks;
+}
+
 export interface ComputedMonth {
   month: number;
   consumption: Partial<Record<MeterId, SeriesPoint>>;
