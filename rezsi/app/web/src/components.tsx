@@ -175,6 +175,54 @@ export function ToastHost() {
   );
 }
 
+/**
+ * Modal confirmation (in-app, so it looks the same in the HA app's web view as in a browser).
+ * Escape or tapping the backdrop cancels; focus starts on the safe choice.
+ */
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  cancelLabel = 'Mégse',
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  children: ComponentChildren;
+  confirmLabel: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    cancelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel();
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
+  }, [onCancel]);
+  return (
+    <div class="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">{title}</h2>
+        <div class="modal-body">{children}</div>
+        <div class="btn-row modal-actions">
+          <button type="button" class="btn btn-secondary" ref={cancelRef} onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button type="button" class="btn" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DateText({ date }: { date?: string }) {
   return <>{formatDate(date)}</>;
 }

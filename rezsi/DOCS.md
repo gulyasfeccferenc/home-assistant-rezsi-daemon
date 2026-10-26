@@ -13,10 +13,12 @@ repository.
   bills with a paid toggle, note. Live checks while typing. Dates are written as year.month.day
   (`2026.10.08.`); the calendar button opens the phone's date picker. Meter readings never go
   backwards: when a reading is saved, lower readings of the same meter in later months are raised to
-  it (higher ones are kept), and the save message lists the changed months.
+  it (higher ones are kept). Before that happens a confirmation lists the affected months, so a typo
+  can be cancelled and fixed; the save message lists the changed months.
 - **Táblázat** – the yearly sheet layout: readings and payable amounts per month, consumption, last year,
   gas profile. Italic values are estimated (spread over months without a reading).
 - **Grafikonok** – consumption vs last year, cost per category, unit price trend, gas actual vs reported vs plan.
+  On a phone, tap a month to see its values; tap again (or anywhere else) to close the tooltip.
 - **Beállítások** – gas profile and annual targets per year, tariffs, export status and "Exportálás most",
   "Teszt értesítés", the one-time xlsx import, and the (read-only) add-on options.
 
