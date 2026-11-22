@@ -55,7 +55,7 @@ export function monthlyReport(
         const unit = METERS[m].unit;
         return [
           METERS[m].label,
-          r ? q(r.value, unit) : '–',
+          r ? q(r.value, unit) + (r.carried ? ' (átvitt)' : '') : '–',
           r ? formatDate(r.date) : '–',
           c ? q(c.value, unit) + (c.estimated ? ' (becsült)' : '') : '–',
           q(cm.lastYearConsumption[m]?.value, unit),
@@ -71,7 +71,9 @@ export function monthlyReport(
     table(
       ['', 'Érték'],
       [
-        ['Diktált óraállás', rec?.gasReported ? `${q(rec.gasReported.value, 'm³')} (${formatDate(rec.gasReported.date)})` : '–'],
+        ['Diktált óraállás', rec?.gasReported
+            ? `${q(rec.gasReported.value, 'm³')}${rec.gasReported.carried ? ' (átvitt)' : ''} (${formatDate(rec.gasReported.date)})`
+            : '–'],
         ['Számlázott fogyasztás', q(cm.billedGas?.value, 'm³')],
         ['Jelleggörbe', q(history.files.get(year)?.gasProfile[month as 1], 'm³')],
         ['Nem diktált (tényleges − diktált)', q(cm.gasDeficit, 'm³')],

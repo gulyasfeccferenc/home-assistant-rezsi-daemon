@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1
+
+- Fix: values carried over from an earlier month no longer count as that month's reading. Before, a
+  November value raised by carry-forward (or copied in the original sheet) made November look
+  "entered", so no reminder was sent. Such values are now stored as placeholders (`carried`):
+  they do not stop reminders, are not used for consumption or checks, and appear in the entry form
+  as "Még nincs leolvasva (átvitt érték: …)" with an empty field. Typing the real value (even the
+  same number) makes it an actual reading.
+- On first start, readings that repeat the previous reading of the same meter are marked as
+  placeholders once (backups of the changed year files go to `/data/backup/`, each change is
+  logged). The sheet import marks them the same way.
+- Exports: placeholders are `carried` / `reported_carried` rows in the CSV, "(átvitt)" in the
+  Markdown reports and italic in the xlsx.
+
 ## 0.2.0
 
 - The app is now called **RezsiDaemon** (sidebar, header, page title, notifications). The add-on slug stays `rezsi`, so existing data is kept.

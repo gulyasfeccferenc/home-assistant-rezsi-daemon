@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/apps/configuration#app-configuration
 name: RezsiDaemon
-version: "0.2.0"
+version: "0.2.1"
 slug: rezsi
 description: Household utility tracker with reminders and git export
 url: https://github.com/gulyasfeccferenc/home-assistant-rezsi-daemon

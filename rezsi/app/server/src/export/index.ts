@@ -14,7 +14,7 @@ import { yearToXlsx } from './xlsx.js';
 const log = logger('export');
 
 /** Bump when the xlsx layout changes so that all workbooks are regenerated. */
-const XLSX_FORMAT_VERSION = 1;
+const XLSX_FORMAT_VERSION = 2;
 
 async function writeIfChanged(path: string, content: string | Buffer): Promise<boolean> {
   try {

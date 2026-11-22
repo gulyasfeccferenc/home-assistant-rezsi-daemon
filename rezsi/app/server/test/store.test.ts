@@ -33,9 +33,41 @@ describe('DataStore', () => {
     ]);
     const reloaded = new DataStore(dir);
     await reloaded.init();
-    expect(reloaded.getYear(2027)!.months[0].readings.electricity).toEqual({ value: 44000, date: '2027-01-09' });
+    expect(reloaded.getYear(2027)!.months[0].readings.electricity).toEqual({ value: 44000, date: '2027-01-09', carried: true });
     // Earlier months are never touched.
     expect(reloaded.getYear(2026)!.months.find((m) => m.month === 9)!.readings.electricity!.value).toBe(43000);
+  });
+
+  it('marks repeated readings in existing data as carried placeholders once, with a backup', async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, 'years'), { recursive: true });
+    const r = (value: number, date: string) => ({ value, date });
+    await writeFile(
+      join(dir, 'years', '2026.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        year: 2026,
+        gasProfile: {},
+        months: [
+          { month: 10, readings: { electricity: r(4000, '2026-10-10') }, gasReported: r(900, '2026-10-22'), bills: {} },
+          { month: 11, readings: { electricity: r(4000, '2026-11-10') }, gasReported: r(900, '2026-11-22'), bills: {} },
+        ],
+      }),
+    );
+    const store = new DataStore(dir);
+    await store.init();
+    const nov = store.getYear(2026)!.months[1];
+    expect(nov.readings.electricity).toEqual({ value: 4000, date: '2026-11-10', carried: true });
+    expect(nov.gasReported?.carried).toBe(true);
+    expect(store.getState().migrations).toEqual(['carried-placeholders-v1']);
+    expect((await readdir(join(dir, 'backup'))).length).toBe(1);
+
+    // Entering the same value again makes it an actual reading; the migration does not run twice.
+    await store.upsertMonth(2026, 11, { ...nov, readings: { electricity: r(4000, '2026-11-10') } });
+    const again = new DataStore(dir);
+    await again.init();
+    expect(again.getYear(2026)!.months[1].readings.electricity!.carried).toBeUndefined();
+    expect((await readdir(join(dir, 'backup'))).length).toBe(1);
   });
 
   it('remembers and restores dismissed warnings', async () => {

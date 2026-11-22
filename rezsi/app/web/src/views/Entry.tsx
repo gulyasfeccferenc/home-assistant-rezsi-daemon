@@ -22,6 +22,7 @@ import {
   type CarryAdjustment,
   type MeterId,
   type MonthRecord,
+  type Reading,
   type YearFile,
 } from '@rezsi/shared';
 import { api } from '../api';
@@ -32,6 +33,8 @@ import { useApp } from '../state';
 interface ReadingDraft {
   value: string;
   date: string;
+  /** A carried-over placeholder kept as-is unless a real value is typed. */
+  carried?: Reading;
 }
 interface BillDraft {
   amount: string;
@@ -51,11 +54,15 @@ function defaultDate(year: number, month: number, today: string): string {
   return today.startsWith(`${year}-${String(month).padStart(2, '0')}`) ? today : isoDate(year, month, 10);
 }
 
+/** Actual readings fill the input; a carried placeholder leaves it empty (shown as a hint instead). */
+function readingDraft(r: Reading | undefined, defaultDay: string, prefill?: number): ReadingDraft {
+  if (r && !r.carried) return { value: num(r.value), date: r.date };
+  return { value: num(prefill), date: defaultDay, ...(r ? { carried: r } : {}) };
+}
+
 function toDraft(rec: MonthRecord | undefined, year: number, month: number, today: string, prefillReported?: number): Draft {
   const d = defaultDate(year, month, today);
-  const readings = Object.fromEntries(
-    METER_IDS.map((m) => [m, { value: num(rec?.readings[m]?.value), date: rec?.readings[m]?.date ?? d }]),
-  ) as Draft['readings'];
+  const readings = Object.fromEntries(METER_IDS.map((m) => [m, readingDraft(rec?.readings[m], d)])) as Draft['readings'];
   const bills = Object.fromEntries(
     BILL_IDS.map((b) => {
       const bill = rec?.bills[b];
@@ -64,7 +71,7 @@ function toDraft(rec: MonthRecord | undefined, year: number, month: number, toda
   ) as Draft['bills'];
   return {
     readings,
-    reported: { value: rec?.gasReported ? num(rec.gasReported.value) : num(prefillReported), date: rec?.gasReported?.date ?? d },
+    reported: readingDraft(rec?.gasReported, d, prefillReported),
     bills,
     note: rec?.note ?? '',
   };
@@ -75,9 +82,10 @@ type FieldErrors = Record<string, string>;
 function toRecord(draft: Draft, month: number): { record: MonthRecord; errors: FieldErrors } {
   const errors: FieldErrors = {};
   const record: MonthRecord = { month, readings: {}, bills: {} };
-  const reading = (key: string, r: ReadingDraft) => {
+  const reading = (key: string, r: ReadingDraft): Reading | undefined => {
     const v = parseNumberInput(r.value);
-    if (v === undefined) return undefined;
+    // Nothing typed: keep a carried placeholder untouched (it still does not count as a reading).
+    if (v === undefined) return r.carried;
     if (Number.isNaN(v) || v < 0) {
       errors[key] = 'Érvénytelen szám';
       return undefined;
@@ -181,7 +189,8 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
   const initial = useMemo(() => {
     // Pre-fill the suggested report once the gas window has opened (or for past months).
     const windowOpen = today >= monthlyWindow(year, month, cfg.gasWindow).start;
-    const suggestion = !saved?.gasReported && windowOpen ? suggestGasReport(savedHistory, year, month)?.value : undefined;
+    const suggestion =
+      !(saved?.gasReported && !saved.gasReported.carried) && windowOpen ? suggestGasReport(savedHistory, year, month)?.value : undefined;
     return toDraft(saved, year, month, today, suggestion);
   }, [savedKey, year, month, today]);
   // Compare against the saved state (without the pre-filled suggestion) so that accepting the
@@ -281,8 +290,13 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
                   error={errors[m]}
                   hint={
                     <>
+                      {draft.readings[m].carried && !draft.readings[m].value && (
+                        <>
+                          <strong>Még nincs leolvasva</strong> (átvitt érték: {formatNumber(draft.readings[m].carried!.value)}) ·{' '}
+                        </>
+                      )}
                       {prev ? `Előző: ${formatNumber(prev.value)} (${formatDate(prev.date)})` : 'Nincs előző óraállás'}
-                      {cons && record.readings[m] && (
+                      {cons && record.readings[m] && !record.readings[m]!.carried && (
                         <>
                           {' · '}fogyasztás: <strong>{formatQuantity(cons.value, meter.unit)}</strong>
                           {cons.estimated && ' (becsült)'}
@@ -298,6 +312,7 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
                       inputMode="decimal"
                       autocomplete="off"
                       aria-label={`${meter.label} óraállás`}
+                      placeholder={draft.readings[m].carried ? formatNumber(draft.readings[m].carried!.value) : ''}
                       value={draft.readings[m].value}
                       onInput={(e) => update((d) => void (d.readings[m].value = (e.target as HTMLInputElement).value))}
                     />
@@ -317,7 +332,11 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
           <Field
             label="Diktált óraállás (m³)"
             error={errors.gasReported}
-            hint={`Diktálási ablak: ${formatDateRange(gasWindow.start, gasWindow.end)}`}
+            hint={
+              draft.reported.carried && !draft.reported.value
+                ? `Még nincs diktálva (átvitt érték: ${formatNumber(draft.reported.carried.value)}) · diktálási ablak: ${formatDateRange(gasWindow.start, gasWindow.end)}`
+                : `Diktálási ablak: ${formatDateRange(gasWindow.start, gasWindow.end)}`
+            }
           >
             <div class="input-pair">
               <input
