@@ -16,7 +16,7 @@ import { YearSelect } from '../components';
 import { href, navigate, type Route } from '../router';
 import { useApp, useYears } from '../state';
 
-type Cell = { v?: number; estimated?: boolean; tone?: 'warn' | 'good'; title?: string; decimals?: number; text?: string };
+type Cell = { v?: number; estimated?: boolean; carried?: boolean; tone?: 'warn' | 'good'; title?: string; decimals?: number; text?: string };
 
 interface Row {
   label: string;
@@ -31,9 +31,13 @@ function CellView({ c, money }: { c: Cell; money?: boolean }) {
   if (c.text) return <td class="num">{c.text}</td>;
   if (c.v === undefined) return <td class="num empty">–</td>;
   return (
-    <td class={`num ${c.estimated ? 'estimated' : ''} ${c.tone ? `tone-${c.tone}` : ''}`} title={c.title}>
+    <td
+      class={`num ${c.estimated || c.carried ? 'estimated' : ''} ${c.tone ? `tone-${c.tone}` : ''}`}
+      title={c.carried ? 'Átvitt érték – még nincs leolvasva' : c.title}
+    >
       {formatNumber(c.v, c.decimals ?? (money ? 0 : 2))}
       {c.estimated && <span class="sr-only"> (becsült)</span>}
+      {c.carried && <span class="sr-only"> (átvitt, még nincs leolvasva)</span>}
     </td>
   );
 }
@@ -55,11 +59,11 @@ export function TableView({ route }: { route: Extract<Route, { view: 'table' }> 
   const none: Cell = {};
 
   const rows: (Row | string)[] = [
-    { label: 'Gáz', cat: 'gas', cells: (m) => [{ v: rec(m)?.readings.gas?.value }, bill(m, 'gas')], total: [none, { v: t.byBill.gas }] },
-    { label: 'Gáz diktált', cat: 'gas', cells: (m) => [{ v: rec(m)?.gasReported?.value }, none] },
-    { label: 'Villany', cat: 'electricity', cells: (m) => [{ v: rec(m)?.readings.electricity?.value }, bill(m, 'electricity')], total: [none, { v: t.byBill.electricity }] },
+    { label: 'Gáz', cat: 'gas', cells: (m) => [{ v: rec(m)?.readings.gas?.value, carried: rec(m)?.readings.gas?.carried }, bill(m, 'gas')], total: [none, { v: t.byBill.gas }] },
+    { label: 'Gáz diktált', cat: 'gas', cells: (m) => [{ v: rec(m)?.gasReported?.value, carried: rec(m)?.gasReported?.carried }, none] },
+    { label: 'Villany', cat: 'electricity', cells: (m) => [{ v: rec(m)?.readings.electricity?.value, carried: rec(m)?.readings.electricity?.carried }, bill(m, 'electricity')], total: [none, { v: t.byBill.electricity }] },
     { label: 'Telekom', cat: 'telecom', cells: (m) => [none, bill(m, 'telecom')], total: [none, { v: t.byBill.telecom }] },
-    { label: 'Víz', cat: 'water', cells: (m) => [{ v: rec(m)?.readings.water?.value }, bill(m, 'water')], total: [none, { v: t.byBill.water }] },
+    { label: 'Víz', cat: 'water', cells: (m) => [{ v: rec(m)?.readings.water?.value, carried: rec(m)?.readings.water?.carried }, bill(m, 'water')], total: [none, { v: t.byBill.water }] },
     { label: 'Szemétszállítás', cat: 'waste', cells: (m) => [none, bill(m, 'waste')], total: [none, { v: t.byBill.waste }] },
     { label: 'Összesen', cat: 'total', strong: true, cells: (m) => [none, { v: cm(m).total }], total: [none, { v: t.ytd }] },
     'Fogyasztás',
@@ -128,7 +132,7 @@ export function TableView({ route }: { route: Extract<Route, { view: 'table' }> 
         <YearSelect years={years} value={year} onChange={(y) => navigate({ view: 'table', year: y })} />
       </div>
       <p class="muted small">
-        Dőlt: becsült (több hónapra elosztott) érték. Kiemelés: a tavalyi azonos hónaphoz képest +{cfg.yoyWarningPercent}% felett / csökkenés.
+        Dőlt: becsült (több hónapra elosztott) vagy átvitt (még le nem olvasott) érték. Kiemelés: a tavalyi azonos hónaphoz képest +{cfg.yoyWarningPercent}% felett / csökkenés.
       </p>
       <div class="table-wrap">
         <table class="sheet">

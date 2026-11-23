@@ -14,7 +14,9 @@ repository.
   (`2026.10.08.`); the calendar button opens the phone's date picker. Meter readings never go
   backwards: when a reading is saved, lower readings of the same meter in later months are raised to
   it (higher ones are kept). Before that happens a confirmation lists the affected months, so a typo
-  can be cancelled and fixed; the save message lists the changed months.
+  can be cancelled and fixed; the save message lists the changed months. Raised values are
+  placeholders ("Még nincs leolvasva (átvitt érték: …)"): they do not count as that month's reading,
+  so its reminder still arrives until you type the real value (even if it is the same number).
 - **Táblázat** – the yearly sheet layout: readings and payable amounts per month, consumption, last year,
   gas profile. Italic values are estimated (spread over months without a reading).
 - **Grafikonok** – consumption vs last year, cost per category, unit price trend, gas actual vs reported vs plan.

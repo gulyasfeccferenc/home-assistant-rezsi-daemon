@@ -14,6 +14,12 @@ export const readingSchema = z
   .object({
     value: z.number().finite().nonnegative(),
     date: isoDateSchema,
+    /**
+     * Placeholder carried over from an earlier month (by carry-forward or copied in the original
+     * sheet), not an actual reading: it does not count as "entered" for reminders, checks or
+     * consumption.
+     */
+    carried: z.literal(true).optional(),
   })
   .strict();
 export type Reading = z.infer<typeof readingSchema>;

@@ -4,6 +4,7 @@ import {
   DEFAULT_CALC_CONFIG,
   emptyYearFile,
   History,
+  markCarriedDuplicates,
   isoDate,
   isValidIsoDate,
   MONTH_NAMES_HU,
@@ -287,11 +288,21 @@ export async function parseSheetWorkbook(
     parsed.push(parseSheet(ws, year, paidBefore, warnings));
   }
 
-  const years: YearFile[] = [];
+  let years: YearFile[] = [];
   for (const p of parsed) {
     const v = yearFileSchema.safeParse(p.file);
     if (!v.success) throw new Error(`${p.file.year}: ${describeZodError(v.error)}`);
     years.push(v.data);
+  }
+  // The sheet copies readings into months that were not read yet: keep them as placeholders only,
+  // so they neither silence reminders nor distort consumption.
+  const carried = markCarriedDuplicates(years);
+  years = years.map((y) => carried.changed.find((c) => c.year === y.year) ?? y);
+  if (carried.marks.length) {
+    warnings.push(
+      `${carried.marks.length} óraállás megegyezik az előző hónapéval, ezért átvitt (nem leolvasott) értékként lett importálva: ` +
+        carried.marks.map((m) => `${m.year}.${String(m.month).padStart(2, '0')}. ${m.source}`).join(', '),
+    );
   }
 
   // Compare the sheet's derived rows with recomputed values.

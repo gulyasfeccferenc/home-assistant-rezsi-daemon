@@ -1,4 +1,4 @@
-import { History, monthlyWindow, suggestGasReport, type GasSuggestion } from './calc.js';
+import { actualReading, History, monthlyWindow, suggestGasReport, type GasSuggestion } from './calc.js';
 import { METER_IDS, type MeterId } from './categories.js';
 import type { CalcConfig } from './config.js';
 import { addDays, diffDays, parseIsoDate } from './dates.js';
@@ -45,7 +45,9 @@ export function meterDue(history: History, meter: MeterId, today: string, cfg: C
   const window = meter === 'gas' ? cfg.gasWindow : cfg.electricityWindow;
   const { start, end } = monthlyWindow(year, month, window);
   const rec = history.record(year, month);
-  const satisfied = meter === 'gas' ? !!(rec?.gasReported && rec.readings.gas) : !!rec?.readings.electricity;
+  // Only actual readings count: a value carried over from an earlier month is a placeholder.
+  const has = (source: 'gas' | 'gasReported' | 'electricity') => !!rec && !!actualReading(rec, source);
+  const satisfied = meter === 'gas' ? has('gasReported') && has('gas') : has('electricity');
   const due: MeterDue = {
     meter,
     status: statusFor(today, start, end, satisfied),

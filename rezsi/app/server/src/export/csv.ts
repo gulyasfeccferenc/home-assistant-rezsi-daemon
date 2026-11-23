@@ -14,10 +14,11 @@ export function yearToCsv(file: YearFile): string {
   for (const rec of file.months) {
     for (const meter of METER_IDS) {
       const r = rec.readings[meter];
-      if (r) rows.push([file.year, rec.month, meter, 'reading', r.value, METERS[meter].unit, r.date, undefined]);
+      if (r) rows.push([file.year, rec.month, meter, r.carried ? 'carried' : 'reading', r.value, METERS[meter].unit, r.date, undefined]);
     }
     if (rec.gasReported) {
-      rows.push([file.year, rec.month, 'gas', 'reported', rec.gasReported.value, 'm³', rec.gasReported.date, undefined]);
+      const kind = rec.gasReported.carried ? 'reported_carried' : 'reported';
+      rows.push([file.year, rec.month, 'gas', kind, rec.gasReported.value, 'm³', rec.gasReported.date, undefined]);
     }
     for (const id of BILL_IDS) {
       const b = rec.bills[id];

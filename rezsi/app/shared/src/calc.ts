@@ -20,6 +20,12 @@ interface TimelineEntry {
   date: string;
 }
 
+/** A month's reading for a source, ignoring carried-over placeholders. */
+export function actualReading(rec: MonthRecord, source: ReadingSource): Reading | undefined {
+  const r = source === 'gasReported' ? rec.gasReported : rec.readings[source];
+  return r && !r.carried ? r : undefined;
+}
+
 /**
  * Indexed view over all year files. Everything that crosses year boundaries
  * (previous readings, consumption spreading, last-year comparison) goes through here.
@@ -41,10 +47,10 @@ export class History {
     return this.files.get(year)?.months.find((m) => m.month === month);
   }
 
+  /** The actual reading of a month; carried-over placeholders do not count. */
   reading(source: ReadingSource, year: number, month: number): Reading | undefined {
     const rec = this.record(year, month);
-    if (!rec) return undefined;
-    return source === 'gasReported' ? rec.gasReported : rec.readings[source];
+    return rec ? actualReading(rec, source) : undefined;
   }
 
   bill(year: number, month: number, id: BillId): Bill | undefined {
@@ -57,7 +63,7 @@ export class History {
       t = [];
       for (const year of this.years()) {
         for (const rec of this.files.get(year)!.months) {
-          const r = source === 'gasReported' ? rec.gasReported : rec.readings[source];
+          const r = actualReading(rec, source);
           if (r) t.push({ index: monthIndex(year, rec.month), year, month: rec.month, value: r.value, date: r.date });
         }
       }
@@ -299,8 +305,8 @@ export function computeYear(history: History, year: number, cfg: CalcConfig, asO
       if (y) yoyMap[meter] = y;
     }
     const billedGas = history.consumption('gasReported', year, month);
-    const actualGas = rec?.readings.gas?.value;
-    const reportedGas = rec?.gasReported?.value;
+    const actualGas = rec && actualReading(rec, 'gas')?.value;
+    const reportedGas = rec && actualReading(rec, 'gasReported')?.value;
 
     const unitPrice: ComputedMonth['unitPrice'] = {};
     for (const meter of METER_IDS) {
@@ -443,8 +449,8 @@ export function computeChecks(history: History, year: number, cfg: CalcConfig, a
 
   const file = history.files.get(year);
   for (const rec of file?.months ?? []) {
-    const actual = rec.readings.gas?.value;
-    const reported = rec.gasReported?.value;
+    const actual = actualReading(rec, 'gas')?.value;
+    const reported = actualReading(rec, 'gasReported')?.value;
     if (actual !== undefined && reported !== undefined && reported > actual) {
       checks.push({
         level: 'warning',
@@ -519,8 +525,10 @@ export function computeChecks(history: History, year: number, cfg: CalcConfig, a
   // Gas plan: is the unreported deficit still absorbable this year?
   for (const month of MONTHS) {
     const rec = history.record(year, month);
-    if (!rec?.gasReported || !rec.readings.gas) continue;
-    const deficit = rec.readings.gas.value - rec.gasReported.value;
+    const actualGas = rec && actualReading(rec, 'gas');
+    const reportedGas = rec && actualReading(rec, 'gasReported');
+    if (!actualGas || !reportedGas) continue;
+    const deficit = actualGas.value - reportedGas.value;
     let remaining = 0;
     for (let m = month + 1; m <= 12; m++) remaining += file?.gasProfile[m as Month] ?? 0;
     if (deficit > 0 && deficit > remaining && Object.keys(file?.gasProfile ?? {}).length > 0) {

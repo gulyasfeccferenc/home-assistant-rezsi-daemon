@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import {
   carryForward,
   CURRENT_SCHEMA_VERSION,
+  markCarriedDuplicates,
   type CarryAdjustment,
   describeZodError,
   emptyYearFile,
@@ -56,7 +57,12 @@ export interface AppState {
   reminders: Partial<Record<MeterId, ReminderState>>;
   lastReminderCheck?: string;
   export: ExportState;
+  /** One-time data repairs already applied. */
+  migrations?: string[];
 }
+
+/** Marks readings that repeat the previous one as carried placeholders (see markCarriedDuplicates). */
+const MIGRATION_CARRIED = 'carried-placeholders-v1';
 
 function emptyState(): AppState {
   return { schemaVersion: 1, reminders: {}, export: {} };
@@ -104,6 +110,30 @@ export class DataStore {
       this.state = { ...emptyState(), ...stateRaw, export: { ...stateRaw.export }, reminders: { ...stateRaw.reminders } };
     }
     log.info(`Loaded ${this.years.size} year file(s) from ${this.yearsDir}`);
+    await this.migrateCarriedPlaceholders();
+  }
+
+  /**
+   * Before 0.2.1, values carried over from earlier months (copied in the original sheet, or raised
+   * by carry-forward) looked like real readings and silenced that month's reminder. Mark them once.
+   */
+  private async migrateCarriedPlaceholders(): Promise<void> {
+    if (this.state.migrations?.includes(MIGRATION_CARRIED)) return;
+    const { changed, marks } = markCarriedDuplicates(this.allYears());
+    if (changed.length) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupDir = join(this.dataDir, 'backup');
+      await mkdir(backupDir, { recursive: true });
+      for (const f of changed) {
+        await copyFile(join(this.yearsDir, `${f.year}.json`), join(backupDir, `${f.year}-${stamp}.json`));
+        await this.saveYear(f, false);
+      }
+      for (const m of marks) log.info(`Marked as carried placeholder: ${m.year}-${String(m.month).padStart(2, '0')} ${m.source} = ${m.value}`);
+      log.info(`Marked ${marks.length} repeated reading(s) as carried placeholders (backups in ${backupDir})`);
+    }
+    await this.updateState((s) => {
+      s.migrations = [...(s.migrations ?? []), MIGRATION_CARRIED];
+    });
   }
 
   onChange(fn: () => void): () => void {
