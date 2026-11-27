@@ -143,6 +143,15 @@ export const optionsSchema = z.object({
   water_window_days: z.number().int().min(1).max(31).default(7),
   yoy_warning_percent: z.number().int().min(1).max(100).default(15),
   publish_entities: z.boolean().default(true),
+  daily_gas_enabled: z.boolean().default(true),
+  daily_gas_time: hhmm.default('18:00'),
+  /** Second reminder the same evening; empty disables it. */
+  daily_gas_repeat_time: z.union([hhmm, z.literal('')]).default('21:00'),
+  heating_base_temperature: z.number().min(5).max(25).default(16),
+  weather_enabled: z.boolean().default(true),
+  /** Optional override of the Home Assistant location used for Open-Meteo. */
+  weather_latitude: z.number().min(-90).max(90).optional(),
+  weather_longitude: z.number().min(-180).max(180).optional(),
   export_enabled: z.boolean().default(false),
   export_day: z.number().int().min(1).max(28).default(1),
   export_time: hhmm.default('06:00'),

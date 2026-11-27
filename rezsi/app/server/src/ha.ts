@@ -53,6 +53,17 @@ export class HaClient {
     });
   }
 
+  /** Home Assistant core configuration (location of the home). */
+  async getCoreConfig(): Promise<{ latitude?: number; longitude?: number; location_name?: string } | undefined> {
+    if (!this.configured) return undefined;
+    try {
+      return (await this.request(`${this.env.haApiUrl}/config`)) as { latitude?: number; longitude?: number; location_name?: string };
+    } catch (err) {
+      log.warn('Cannot read Home Assistant config', err);
+      return undefined;
+    }
+  }
+
   /**
    * Frontend path of the add-on's sidebar panel (e.g. `/a1b2c3d4_rezsi`). Ingress panels are
    * registered under the add-on slug, which includes the repository prefix.

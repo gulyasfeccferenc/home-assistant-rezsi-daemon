@@ -29,6 +29,25 @@ configuration:
   publish_entities:
     name: Publish Home Assistant entities
     description: Publish binary_sensor.rezsi_*_due, sensor.rezsi_month_total and sensor.rezsi_unpaid_total.
+  daily_gas_enabled:
+    name: Daily gas reading reminder
+    description: Remind every evening to record the gas meter on the "Napi gáz" tab, unless a reading was already entered that day.
+  daily_gas_time:
+    name: Daily gas reminder time (HH:MM)
+  daily_gas_repeat_time:
+    name: Daily gas reminder repeat (HH:MM)
+    description: Second reminder the same evening if there is still no reading. Leave empty to disable.
+  heating_base_temperature:
+    name: Heating base temperature (°C)
+    description: Heating degree days are counted as base temperature minus the daily mean outdoor temperature.
+  weather_enabled:
+    name: Outdoor temperatures from Open-Meteo
+    description: Fetch daily mean temperatures from Open-Meteo (free, no account) for the Home Assistant location.
+  weather_latitude:
+    name: Weather latitude (optional)
+    description: Overrides the Home Assistant location for Open-Meteo.
+  weather_longitude:
+    name: Weather longitude (optional)
   export_enabled:
     name: Monthly export
     description: Export JSON/CSV/xlsx/Markdown monthly and push to the git repository.

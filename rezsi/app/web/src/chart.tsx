@@ -9,13 +9,25 @@ import {
   LineController,
   LineElement,
   PointElement,
+  ScatterController,
   Tooltip,
   type ChartConfiguration,
   type Plugin,
 } from 'chart.js';
 import { formatNumber } from '@rezsi/shared';
 
-Chart.register(BarController, BarElement, LineController, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend);
+Chart.register(
+  BarController,
+  BarElement,
+  LineController,
+  LineElement,
+  PointElement,
+  ScatterController,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+);
 
 export function useDarkMode(): boolean {
   const query = '(prefers-color-scheme: dark)';

@@ -1,4 +1,4 @@
-import type { CalcConfig, CarryAdjustment, ComputedYear, MeterDue, MonthRecord, ProfileUpdate, Tariff, YearFile, Check, YearTotals } from '@rezsi/shared';
+import type { CalcConfig, CarryAdjustment, DailyGasReading, ComputedYear, MeterDue, MonthRecord, ProfileUpdate, Tariff, YearFile, Check, YearTotals } from '@rezsi/shared';
 
 // All URLs are relative (no leading slash) so they resolve against the Ingress base path.
 
@@ -84,7 +84,27 @@ export interface ImportResult {
   mismatches: { year: number; month?: number; row: string; sheet: number; computed?: number }[];
 }
 
+export interface DailyResponse {
+  readings: DailyGasReading[];
+  /** Daily mean temperature (°C) per date. */
+  temperatures: Record<string, number>;
+  weather: {
+    enabled: boolean;
+    source: string;
+    latitude?: number;
+    longitude?: number;
+    locationName?: string;
+    lastFetchAt?: string;
+    lastError?: string;
+  };
+  baseTemperature: number;
+  reminder: { enabled: boolean; times: string[] };
+}
+
 export const api = {
+  daily: () => request<DailyResponse>('daily'),
+  addDaily: (reading: DailyGasReading) => request<DailyResponse>('daily', { method: 'POST', body: JSON.stringify(reading) }),
+  deleteDaily: (at: string) => request<DailyResponse>(`daily?at=${encodeURIComponent(at)}`, { method: 'DELETE' }),
   config: () => request<ConfigResponse>('config'),
   data: () => request<DataResponse>('data'),
   status: () => request<StatusResponse>('status'),

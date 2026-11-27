@@ -18,8 +18,10 @@ import {
   parseNumberInput,
   suggestGasReport,
   withoutDismissed,
+  zonedToEpoch,
   type BillId,
   type CarryAdjustment,
+  type DailyGasReading,
   type MeterId,
   type MonthRecord,
   type Reading,
@@ -153,6 +155,21 @@ function describeAdjustments(list: CarryAdjustment[]): string {
   return `Későbbi hónapok óraállása frissítve: ${items.join(', ')}.`;
 }
 
+/**
+ * The daily gas reading of the month closest to the monthly reading's date (offered, never filled
+ * in automatically: the monthly reading is the basis of the reported value).
+ */
+function dailyOffer(readings: DailyGasReading[], year: number, month: number, date: string): DailyGasReading | undefined {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`;
+  const inMonth = readings.filter((r) => r.at.startsWith(prefix));
+  if (!inMonth.length) return undefined;
+  if (!isValidIsoDate(date)) return inMonth.at(-1);
+  const target = zonedToEpoch(`${date}T12:00`);
+  return inMonth.reduce((best, r) =>
+    Math.abs(zonedToEpoch(r.at) - target) < Math.abs(zonedToEpoch(best.at) - target) ? r : best,
+  );
+}
+
 function Field({
   label,
   error,
@@ -174,7 +191,7 @@ function Field({
 }
 
 export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> }) {
-  const { data, config, today, applyYears, dismissed, dismissCheck } = useApp();
+  const { data, config, today, applyYears, dismissed, dismissCheck, daily } = useApp();
   const [ty, tm] = today.split('-').map(Number);
   const year = route.year ?? ty;
   const month = route.month ?? tm;
@@ -323,6 +340,25 @@ export function EntryView({ route }: { route: Extract<Route, { view: 'entry' }> 
                     />
                   </div>
                 </Field>
+                {m === 'gas' && !draft.readings.gas.value && (() => {
+                  const offer = dailyOffer(daily?.readings ?? [], year, month, draft.readings.gas.date);
+                  return (
+                    offer && (
+                      <button
+                        type="button"
+                        class="btn btn-small btn-secondary"
+                        onClick={() =>
+                          update((d) => {
+                            d.readings.gas.value = formatNumber(offer.value, 3, ' ');
+                            d.readings.gas.date = offer.at.slice(0, 10);
+                          })
+                        }
+                      >
+                        Napi leolvasásból: {formatNumber(offer.value, 3)} ({formatDate(offer.at.slice(0, 10))} {offer.at.slice(11)})
+                      </button>
+                    )
+                  );
+                })()}
               </div>
             );
           })}

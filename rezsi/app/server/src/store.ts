@@ -59,6 +59,7 @@ export interface AppState {
   export: ExportState;
   /** One-time data repairs already applied. */
   migrations?: string[];
+  dailyGas?: { lastSent?: { date: string; slot: number } };
 }
 
 /** Marks readings that repeat the previous one as carried placeholders (see markCarriedDuplicates). */

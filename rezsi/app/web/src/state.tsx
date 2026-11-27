@@ -1,12 +1,14 @@
 import { createContext } from 'preact';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'preact/hooks';
 import { checkKey, History, today as todayIn, type Check, type YearFile } from '@rezsi/shared';
-import { api, type ConfigResponse, type DataResponse, type StatusResponse } from './api';
+import { api, type ConfigResponse, type DailyResponse, type DataResponse, type StatusResponse } from './api';
 
 export interface AppState {
   config?: ConfigResponse;
   data?: DataResponse;
   status?: StatusResponse;
+  daily?: DailyResponse;
+  setDaily: (d: DailyResponse) => void;
   history: History;
   today: string;
   error?: string;
@@ -27,15 +29,17 @@ export function AppProvider({ children }: { children: preact.ComponentChildren }
   const [config, setConfig] = useState<ConfigResponse>();
   const [data, setData] = useState<DataResponse>();
   const [status, setStatus] = useState<StatusResponse>();
+  const [daily, setDaily] = useState<DailyResponse>();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     try {
-      const [c, d, s] = await Promise.all([api.config(), api.data(), api.status()]);
+      const [c, d, s, dg] = await Promise.all([api.config(), api.data(), api.status(), api.daily().catch(() => undefined)]);
       setConfig(c);
       setData(d);
       setStatus(s);
+      setDaily(dg);
       setError(undefined);
     } catch (err) {
       setError((err as Error).message);
@@ -82,7 +86,7 @@ export function AppProvider({ children }: { children: preact.ComponentChildren }
 
   return (
     <Ctx.Provider
-      value={{ config, data, status, history, today, error, loading, reload, applyYear, applyYears, dismissed, dismissCheck, restoreChecks }}
+      value={{ config, data, status, daily, setDaily, history, today, error, loading, reload, applyYear, applyYears, dismissed, dismissCheck, restoreChecks }}
     >
       {children}
     </Ctx.Provider>

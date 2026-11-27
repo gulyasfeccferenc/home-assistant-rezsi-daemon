@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0
+
+- New **Napi gáz** tab for daily gas meter readings (three decimals). The reading time is set
+  automatically when saving and can be changed (e.g. a reading written down in the morning).
+- Consumption between two readings is split onto calendar days in proportion to time, so morning and
+  late-evening readings are both handled. A day is final once readings exist on both sides of it;
+  partial days are shown lighter and left out of the analysis.
+- Daily mean outdoor temperatures from **Open-Meteo** (free, no account) for the Home Assistant
+  location (or `weather_latitude`/`weather_longitude`), cached in `/data/weather.json`.
+- Analysis: daily consumption and temperature charts, consumption vs temperature with a trend line
+  ("1 °C-kal hidegebb nap ≈ +X m³"), and weekly m³ per heating degree day
+  (`heating_base_temperature`, default 16 °C).
+- Daily reminder at `daily_gas_time` (18:00) and again at `daily_gas_repeat_time` (21:00), only if no
+  reading was entered that day; tapping it opens the Napi gáz tab.
+- The monthly entry form offers the daily reading closest to the monthly reading date for the gas
+  meter (never filled in automatically).
+- Daily readings are not part of the git export (they are in Home Assistant backups via `/data`).
+
 ## 0.2.1
 
 - Fix: values carried over from an earlier month no longer count as that month's reading. Before, a

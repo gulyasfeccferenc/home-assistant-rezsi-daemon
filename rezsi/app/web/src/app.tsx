@@ -2,6 +2,7 @@ import { Spinner, ToastHost } from './components';
 import { href, useRoute, type Route } from './router';
 import { AppProvider, useApp } from './state';
 import { ChartsView } from './views/Charts';
+import { DailyView } from './views/Daily';
 import { EntryView } from './views/Entry';
 import { OverviewView } from './views/Overview';
 import { SettingsView } from './views/Settings';
@@ -10,6 +11,7 @@ import { TableView } from './views/Table';
 const NAV: { view: Route['view']; label: string; icon: string }[] = [
   { view: 'overview', label: 'Áttekintés', icon: '⌂' },
   { view: 'entry', label: 'Rögzítés', icon: '✎' },
+  { view: 'daily', label: 'Napi gáz', icon: '♨' },
   { view: 'table', label: 'Táblázat', icon: '▦' },
   { view: 'charts', label: 'Grafikonok', icon: '▤' },
   { view: 'settings', label: 'Beállítások', icon: '⚙' },
@@ -52,6 +54,7 @@ function Shell() {
           <>
             {route.view === 'overview' && <OverviewView />}
             {route.view === 'entry' && <EntryView route={route} />}
+            {route.view === 'daily' && <DailyView />}
             {route.view === 'table' && <TableView route={route} />}
             {route.view === 'charts' && <ChartsView route={route} />}
             {route.view === 'settings' && <SettingsView />}

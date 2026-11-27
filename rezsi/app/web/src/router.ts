@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 export type Route =
   | { view: 'overview' }
   | { view: 'entry'; year?: number; month?: number }
+  | { view: 'daily' }
   | { view: 'table'; year?: number }
   | { view: 'charts'; year?: number }
   | { view: 'settings' };
@@ -11,6 +12,7 @@ const SEGMENTS: Record<string, Route['view']> = {
   '': 'overview',
   attekintes: 'overview',
   rogzites: 'entry',
+  napi: 'daily',
   tablazat: 'table',
   grafikonok: 'charts',
   beallitasok: 'settings',
@@ -50,6 +52,8 @@ export function href(route: Route): string {
       return route.year ? `#/grafikonok/${route.year}` : '#/grafikonok';
     case 'settings':
       return '#/beallitasok';
+    case 'daily':
+      return '#/napi';
   }
 }
 

@@ -7,6 +7,8 @@ import { ExportService } from './export/index.js';
 import { HaClient } from './ha.js';
 import { logger } from './log.js';
 import { ReminderService } from './reminders.js';
+import { DailyGasReminder, DailyGasStore } from './daily.js';
+import { WeatherService } from './weather.js';
 import { Scheduler } from './scheduler.js';
 import { DataStore } from './store.js';
 
@@ -28,12 +30,22 @@ async function main(): Promise<void> {
   const entities = new EntityPublisher(store, ha, reminders, options);
   store.onChange(() => entities.schedule());
 
-  const app = createApp({ env, options, store, reminders, exporter, version: VERSION });
+  const daily = new DailyGasStore(env.dataDir);
+  await daily.init();
+  const weather = new WeatherService(env.dataDir, options, ha);
+  await weather.init();
+  const dailyReminder = new DailyGasReminder(daily, weather, store, ha, options);
+
+  const app = createApp({ env, options, store, reminders, exporter, version: VERSION, daily: { store: daily, weather } });
   const server = serve({ fetch: app.fetch, port: env.port, hostname: env.host }, (info) => {
     log.info(`Listening on ${env.host}:${info.port}${env.allowedIps.length ? ` (allowed: ${env.allowedIps.join(', ')})` : ''}`);
   });
 
-  const scheduler = new Scheduler(options, store, reminders, exporter, entities);
+  const scheduler = new Scheduler(options, store, reminders, exporter, entities, {
+    reminder: dailyReminder,
+    weather,
+    store: daily,
+  });
   scheduler.start();
 
   let stopping = false;
@@ -45,7 +57,7 @@ async function main(): Promise<void> {
     entities.stop();
     server.close();
     try {
-      await Promise.race([store.flush(), new Promise((r) => setTimeout(r, 5000))]);
+      await Promise.race([Promise.all([store.flush(), daily.flush()]), new Promise((r) => setTimeout(r, 5000))]);
     } finally {
       process.exit(0);
     }

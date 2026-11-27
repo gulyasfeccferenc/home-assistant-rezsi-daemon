@@ -12,7 +12,9 @@ import {
 } from '@rezsi/shared';
 import type { Env } from './env.js';
 import { publicOptions } from './env.js';
+import type { DailyGasStore } from './daily.js';
 import type { ExportService } from './export/index.js';
+import type { WeatherService } from './weather.js';
 import { formatImportReport, parseSheetWorkbook } from './importer.js';
 import { logger } from './log.js';
 import type { ReminderService } from './reminders.js';
@@ -28,6 +30,7 @@ export interface AppDeps {
   reminders: ReminderService;
   exporter: ExportService;
   version: string;
+  daily?: { store: DailyGasStore; weather: WeatherService };
 }
 
 function parseYear(s: string): number {
@@ -192,6 +195,37 @@ export function createApp(deps: AppDeps): Hono {
       mismatches: report.mismatches,
     });
   });
+
+  if (deps.daily) {
+    const { store: daily, weather } = deps.daily;
+    const dailyBody = () => ({
+      readings: daily.readings(),
+      temperatures: weather.temperatures(),
+      weather: weather.status(),
+      baseTemperature: options.heating_base_temperature,
+      reminder: { enabled: options.daily_gas_enabled, times: [options.daily_gas_time, options.daily_gas_repeat_time].filter(Boolean) },
+    });
+
+    /** Daily gas readings plus the cached daily mean temperatures. */
+    api.get('/daily', (c) => {
+      // Refresh temperatures in the background when they are getting old; the next load shows them.
+      void weather.refreshIfStale(daily.readings()[0]?.at.slice(0, 10));
+      return c.json(dailyBody());
+    });
+
+    api.post('/daily', async (c) => {
+      const body = await c.req.json().catch(() => {
+        throw new ValidationError('Hibás JSON.');
+      });
+      await daily.add(body);
+      return c.json(dailyBody());
+    });
+
+    api.delete('/daily', async (c) => {
+      await daily.remove(c.req.query('at') ?? '');
+      return c.json(dailyBody());
+    });
+  }
 
   api.all('*', (c) => c.json({ error: 'Nincs ilyen végpont.' }, 404));
 

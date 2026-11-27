@@ -44,6 +44,9 @@ export class FakeHa extends HaClient {
   override async getPanelPath() {
     return '/abcd1234_rezsi';
   }
+  override async getCoreConfig() {
+    return { latitude: 47.6086, longitude: 19.6016, location_name: 'Tura' };
+  }
 }
 
 export async function seededStore(dir: string): Promise<DataStore> {

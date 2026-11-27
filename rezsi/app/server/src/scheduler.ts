@@ -1,6 +1,8 @@
 import { Cron } from 'croner';
 import { TIME_ZONE, zonedParts, type Options } from '@rezsi/shared';
+import type { DailyGasReminder, DailyGasStore } from './daily.js';
 import type { EntityPublisher } from './entities.js';
+import type { WeatherService } from './weather.js';
 import type { ExportService } from './export/index.js';
 import { logger } from './log.js';
 import type { ReminderService } from './reminders.js';
@@ -23,6 +25,7 @@ export class Scheduler {
     private readonly reminders: ReminderService,
     private readonly exporter: ExportService,
     private readonly entities: EntityPublisher,
+    private readonly daily?: { reminder: DailyGasReminder; weather: WeatherService; store: DailyGasStore },
   ) {}
 
   start(): void {
@@ -36,6 +39,22 @@ export class Scheduler {
       this.jobs.push(
         new Cron(cronAt(this.options.export_time, String(this.options.export_day)), { timezone: TIME_ZONE, protect, name: 'export' }, async () => {
           await this.exporter.run('monthly').catch((err) => log.error('Monthly export failed', err));
+        }),
+      );
+    }
+    if (this.daily) {
+      const d = this.daily;
+      for (const time of d.reminder.slots) {
+        this.jobs.push(
+          new Cron(cronAt(time), { timezone: TIME_ZONE, protect, name: `daily-gas ${time}` }, async () => {
+            await d.reminder.run().catch((err) => log.error('Daily gas reminder failed', err));
+          }),
+        );
+      }
+      // Temperatures: a few times a day is plenty (days are cached once complete).
+      this.jobs.push(
+        new Cron('23 1,7,13,19 * * *', { timezone: TIME_ZONE, protect, name: 'weather' }, async () => {
+          await d.weather.refreshIfStale(d.store.readings()[0]?.at.slice(0, 10));
         }),
       );
     }
@@ -57,6 +76,10 @@ export class Scheduler {
 
   private async startup(): Promise<void> {
     await this.runReminders(true);
+    if (this.daily) {
+      await this.daily.reminder.run().catch((err) => log.error('Daily gas reminder failed', err));
+      await this.daily.weather.refreshIfStale(this.daily.store.readings()[0]?.at.slice(0, 10));
+    }
     if (!this.options.export_enabled) return;
     // Missed monthly export (add-on was down at the scheduled time)?
     const now = zonedParts();

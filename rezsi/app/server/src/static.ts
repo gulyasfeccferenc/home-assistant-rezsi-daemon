@@ -16,7 +16,7 @@ const TYPES: Record<string, string> = {
 };
 
 /** Client-side routes that may appear as a path (deep links from notifications). */
-const SPA_ROUTE = /^\/(attekintes|rogzites|tablazat|grafikonok|beallitasok)(\/[\w-]*)*\/?$/;
+const SPA_ROUTE = /^\/(attekintes|rogzites|napi|tablazat|grafikonok|beallitasok)(\/[\w-]*)*\/?$/;
 
 /**
  * The Ingress gateway strips its prefix, so the app is always served from `/` but the browser sees

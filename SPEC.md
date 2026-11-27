@@ -377,6 +377,8 @@ Read options from `/data/options.json` at startup. Provide English labels/descri
 
 - Access only via HA Ingress; no own authentication needed.
 - No outbound network calls except the HA Supervisor API and the configured git remote.
+  (Added in 0.3.0 with the owner's approval: Open-Meteo, `api.open-meteo.com`, for daily mean
+  outdoor temperatures; it can be switched off with `weather_enabled: false`.)
 - Data survives add-on updates and is included in HA backups (`/data`).
 - Schema version field and a migration hook for future changes.
 - Small image and low memory use (target < 100 MB RAM).

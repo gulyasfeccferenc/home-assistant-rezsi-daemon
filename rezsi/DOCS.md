@@ -17,6 +17,12 @@ repository.
   can be cancelled and fixed; the save message lists the changed months. Raised values are
   placeholders ("Még nincs leolvasva (átvitt érték: …)"): they do not count as that month's reading,
   so its reminder still arrives until you type the real value (even if it is the same number).
+- **Napi gáz** – daily gas meter readings (with time) and their analysis against the outdoor
+  temperature. Consumption between two readings is split onto days in proportion to time; a day is
+  final once there is a reading on both sides of it. Charts: daily consumption, daily mean
+  temperature, consumption vs temperature with a trend line, weekly m³ per heating degree day.
+  A reminder arrives at `daily_gas_time` and `daily_gas_repeat_time` if no reading was entered that
+  day. The monthly entry form offers the closest daily reading for the monthly gas reading.
 - **Táblázat** – the yearly sheet layout: readings and payable amounts per month, consumption, last year,
   gas profile. Italic values are estimated (spread over months without a reading).
 - **Grafikonok** – consumption vs last year, cost per category, unit price trend, gas actual vs reported vs plan.
@@ -79,6 +85,8 @@ Everything lives in `/data` (included in Home Assistant backups):
 /data/years/<year>.json   one file per year (validated, written atomically)
 /data/settings.json       tariffs
 /data/state.json          reminder and export state
+/data/daily-gas.json      daily gas readings (not exported to git)
+/data/weather.json        cached daily mean temperatures (Open-Meteo)
 /data/export/             local clone of the export repository
 ```
 
@@ -94,6 +102,11 @@ Everything lives in `/data` (included in Home Assistant backups):
 | `water_interval_days` / `water_window_days` | `60` / `7` | water window after the last reading |
 | `yoy_warning_percent` | `15` | highlight consumption this much above last year |
 | `publish_entities` | `true` | publish helper entities |
+| `daily_gas_enabled` | `true` | daily gas reminder |
+| `daily_gas_time` / `daily_gas_repeat_time` | `18:00` / `21:00` | reminder times (empty repeat = none) |
+| `heating_base_temperature` | `16` | heating degree day = this minus the daily mean temperature |
+| `weather_enabled` | `true` | fetch daily mean temperatures from Open-Meteo |
+| `weather_latitude` / `weather_longitude` | – | override the Home Assistant location |
 | `export_enabled` | `false` | monthly export |
 | `export_day` / `export_time` | `1` / `06:00` | when the monthly export runs (a missed run is caught up at startup) |
 | `git_repo_url` | – | HTTPS URL of the data repository |
